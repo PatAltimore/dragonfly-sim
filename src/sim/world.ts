@@ -32,6 +32,7 @@ import {
 } from './constants';
 import { stepDescent } from './descent';
 import { isNight } from './daynight';
+import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
 
 /** Abstract pilot input, independent of device. Both axes are in [-1, 1]. */
@@ -85,6 +86,7 @@ export interface World {
   /** True when this run began with the entry descent. */
   intro: boolean;
   landing: LandingResult | null;
+  science: Science;
   craft: Craft;
   status: Status;
   /** Why the craft crashed, or a landing note. */
@@ -101,7 +103,16 @@ export const NO_INPUT: Input = { tilt: 0, climb: 0 };
 export function createWorld(seed = 1, opts: { intro?: boolean } = {}): World {
   const intro = opts.intro ?? true;
   const terrain = new Terrain(seed);
-  const base = { terrain, spin: 1, intro, landing: null, time: 0, battery: 1, wind: 0 };
+  const base = {
+    terrain,
+    spin: 1,
+    intro,
+    landing: null,
+    science: createScience(terrain, intro ? 0 : 20),
+    time: 0,
+    battery: 1,
+    wind: 0,
+  };
   if (intro) {
     const y = terrain.groundUnder(START_X) + START_AGL + SKID_DROP;
     return {
@@ -136,6 +147,11 @@ export function isPowerLost(w: World): boolean {
 }
 
 export function step(w: World, pilot: Input, dt: number): void {
+  stepFlight(w, pilot, dt);
+  stepScience(w, dt);
+}
+
+function stepFlight(w: World, pilot: Input, dt: number): void {
   const c = w.craft;
   w.time += dt;
   c.rotorPhase += (6 + c.throttle * 40) * dt;
@@ -178,6 +194,7 @@ export function step(w: World, pilot: Input, dt: number): void {
       w.status = 'flying';
       w.message = '';
       if (w.landing) w.landing.dismissed = true;
+      if (w.science.hintUntil === 0) w.science.hintUntil = w.time + 15;
     } else {
       return;
     }

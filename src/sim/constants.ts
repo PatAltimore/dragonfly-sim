@@ -70,3 +70,15 @@ export const SPINUP_MAX_FALL = 60;
 export const MIN_RECOVERY_AGL = 15;
 /** Touching down within this distance (m) of the pad center counts as a bullseye. */
 export const PAD_BULLSEYE = 8;
+
+/** Science. Radii in meters, times in seconds, altitudes in meters above ground. */
+export const TARGET_RADIUS = 8;
+export const PHOTO_RADIUS = 14;
+export const PHOTO_MIN_AGL = 10;
+export const PHOTO_MAX_AGL = 60;
+export const PHOTO_MAX_SPEED = 25;
+/** Unfinished work drains away at this rate (progress per second) when the pilot leaves. */
+export const PROGRESS_DECAY = 0.6;
+/** Landing within this distance of x = 0 counts as being at the base. */
+export const BASE_RADIUS = 12;
+export const UPLOAD_TIME = 2;

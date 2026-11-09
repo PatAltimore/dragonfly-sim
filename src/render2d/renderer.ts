@@ -1,6 +1,19 @@
-import { LOW_BATTERY, MAX_IMPACT_SPEED, MIN_TAKEOFF_BATTERY, PAD_BULLSEYE, SKID_DROP } from '../sim/constants';
+import { INSTRUMENTS } from '../content/instruments';
+import {
+  BASE_RADIUS,
+  LOW_BATTERY,
+  MAX_IMPACT_SPEED,
+  MIN_TAKEOFF_BATTERY,
+  PAD_BULLSEYE,
+  PHOTO_MAX_AGL,
+  PHOTO_MIN_AGL,
+  PHOTO_RADIUS,
+  SKID_DROP,
+  TARGET_RADIUS,
+} from '../sim/constants';
 import { dayNumber, daylight, phaseLabel } from '../sim/daynight';
 import { hintFor } from '../ui/hints';
+import { cargoValue } from '../sim/science';
 import { altitudeAGL, isPowerLost, type World } from '../sim/world';
 
 /** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
@@ -86,6 +99,7 @@ export class Renderer {
     this.drawFarDunes(cw, ch, scale);
     this.drawTerrain(w, cw, ch, scale, sx, sy);
     this.drawBase(w, scale, sx, sy);
+    this.drawTargets(w, scale, sx, sy);
     this.updateDust(w, dt);
     this.drawDust(scale, sx, sy);
     this.drawCanopy(w, dt, scale, sx, sy);
@@ -234,6 +248,66 @@ export class Renderer {
     ctx.strokeStyle = '#5a3a1c';
     ctx.lineWidth = Math.max(1, scale * 0.15);
     ctx.stroke();
+  }
+
+  /** Science target markers: landing rings for DraMS/DraGNS, hover boxes for DragonCam. */
+  private drawTargets(w: World, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    const pulse = 0.65 + 0.35 * Math.sin(w.time * 4);
+    ctx.textAlign = 'center';
+    for (const t of w.science.targets) {
+      const ins = INSTRUMENTS[t.kind];
+      const gy = w.terrain.heightAt(t.x);
+      const px = sx(t.x);
+      const py = sy(gy);
+      ctx.globalAlpha = t.collected ? 0.3 : 1;
+      ctx.strokeStyle = ins.color;
+      ctx.fillStyle = ins.color;
+      ctx.lineWidth = Math.max(1.5, scale * 0.25);
+      let labelY: number;
+      if (ins.landing) {
+        ctx.globalAlpha *= pulse;
+        ctx.beginPath();
+        ctx.ellipse(px, py, TARGET_RADIUS * scale, 1.3 * scale, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = t.collected ? 0.3 : 1;
+        ctx.fillRect(px - scale * 0.15, py - 9 * scale, scale * 0.3, 9 * scale);
+        ctx.beginPath();
+        ctx.moveTo(px, py - 12 * scale);
+        ctx.lineTo(px + 1.6 * scale, py - 9.8 * scale);
+        ctx.lineTo(px, py - 7.6 * scale);
+        ctx.lineTo(px - 1.6 * scale, py - 9.8 * scale);
+        ctx.closePath();
+        ctx.fill();
+        labelY = py - 13.5 * scale;
+      } else {
+        const top = sy(gy + PHOTO_MAX_AGL);
+        const bottom = sy(gy + PHOTO_MIN_AGL);
+        ctx.setLineDash([scale * 1.2, scale * 0.8]);
+        ctx.globalAlpha *= pulse;
+        ctx.strokeRect(sx(t.x - PHOTO_RADIUS), top, 2 * PHOTO_RADIUS * scale, bottom - top);
+        ctx.setLineDash([]);
+        ctx.globalAlpha = t.collected ? 0.3 : 1;
+        ctx.beginPath();
+        ctx.arc(px, (top + bottom) / 2, scale * 1.4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(px, (top + bottom) / 2, scale * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        labelY = top - scale * 1.2;
+      }
+      ctx.font = `${Math.max(12, Math.round(scale * 1.7))}px monospace`;
+      ctx.fillText(t.collected ? `${ins.label} ✓` : ins.label, px, labelY);
+      if (t.progress > 0 && !t.collected) {
+        const bw = 12 * scale;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(20,10,0,0.6)';
+        ctx.fillRect(px - bw / 2, labelY - scale * 3.4, bw, scale * 1.1);
+        ctx.fillStyle = ins.color;
+        ctx.fillRect(px - bw / 2, labelY - scale * 3.4, bw * t.progress, scale * 1.1);
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   /** Landing zone at x = 0: pad, bullseye marks and blinking beacons. */
@@ -396,15 +470,17 @@ export class Renderer {
       ['DIST', `${c.x.toFixed(0)} m`],
       ['SOL', `${dayNumber(w.time)} ${phaseLabel(w.time)}`],
       ['BATT', `${Math.round(w.battery * 100)}%`],
+      ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
+      ['SCORE', `${w.science.score}`],
     ];
     ctx.fillStyle = 'rgba(20,10,0,0.55)';
-    ctx.fillRect(u * 0.6, u * 0.6, u * 11, u * (lines.length * 1.35 + 1.9));
+    ctx.fillRect(u * 0.6, u * 0.6, u * 12, u * (lines.length * 1.35 + 1.9));
     lines.forEach(([k, v], i) => {
       let color = '#ffe2b0';
       if (k === 'V/S' && risky) color = '#ff6a4a';
       if (k === 'BATT' && low) color = blink ? '#ff6a4a' : '#ffe2b0';
       ctx.fillStyle = color;
-      ctx.fillText(`${k.padEnd(5)}${v}`, u, u * (1.9 + i * 1.35));
+      ctx.fillText(`${k.padEnd(6)}${v}`, u, u * (1.9 + i * 1.35));
     });
     // Battery bar with the takeoff minimum marked.
     const by = u * (1.9 + lines.length * 1.35) - u * 0.2;
@@ -426,6 +502,10 @@ export class Renderer {
       ctx.fillStyle = '#ffe2b0';
       ctx.fillText(w.message, cw / 2, ch * 0.35 + u * 2);
       ctx.fillText('Press R to restart', cw / 2, ch * 0.35 + u * 3.8);
+      if (w.science.lostValue > 0) {
+        ctx.fillStyle = '#ff6a4a';
+        ctx.fillText(`${w.science.lostValue} points of unsent data lost`, cw / 2, ch * 0.35 + u * 5.6);
+      }
     } else if (isPowerLost(w)) {
       ctx.fillStyle = blink ? '#ff6a4a' : '#ffe2b0';
       ctx.font = `bold ${u * 1.8}px monospace`;
@@ -441,11 +521,135 @@ export class Renderer {
     }
 
     this.drawIntroHud(w, cw, ch, u);
+    this.drawSortieHud(w, cw, ch, u);
 
     ctx.textAlign = 'center';
     ctx.font = `${u * 0.9}px monospace`;
     ctx.fillStyle = 'rgba(255,226,176,0.7)';
     ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro', cw / 2, ch - u * 0.8);
+  }
+
+  /** Target pointer, radar strip, work progress, event toasts and the sortie-complete panel. */
+  private drawSortieHud(w: World, cw: number, ch: number, u: number): void {
+    if (w.phase !== 'flight' || (w.intro && !w.landing)) return;
+    const { ctx } = this;
+    const s = w.science;
+    const c = w.craft;
+    ctx.textAlign = 'center';
+    const dir = (dx: number) => (dx > 0 ? '►' : '◄');
+
+    if (!s.complete && w.status !== 'crashed') {
+      const open = s.targets.filter((t) => !t.collected);
+      if (open.length > 0) {
+        const t = open.reduce((a, b) => (Math.abs(a.x - c.x) < Math.abs(b.x - c.x) ? a : b));
+        const ins = INSTRUMENTS[t.kind];
+        const dx = t.x - c.x;
+        ctx.font = `bold ${u * 1.4}px monospace`;
+        ctx.fillStyle = ins.color;
+        ctx.fillText(`${ins.label} ${dir(dx)} ${Math.abs(dx).toFixed(0)} m`, cw / 2, u * 2.2);
+      }
+      if (s.cargo.length > 0) {
+        const dx = -c.x;
+        ctx.font = `${u * 1.1}px monospace`;
+        ctx.fillStyle = '#ffe2b0';
+        const where = Math.abs(dx) <= BASE_RADIUS ? 'AT BASE: land to upload' : `BASE ${dir(dx)} ${Math.abs(dx).toFixed(0)} m`;
+        ctx.fillText(`CARGO ${cargoValue(s)} pts  ${where}`, cw / 2, u * 3.7);
+      }
+
+      // Radar strip along the track: base, targets and the craft.
+      const xs = [0, c.x, ...s.targets.map((t) => t.x)];
+      const lo = Math.min(...xs) - 80;
+      const hi = Math.max(...xs) + 80;
+      const rw = Math.min(cw * 0.55, u * 36);
+      const rx = cw / 2 - rw / 2;
+      const ry = u * 5.4;
+      const at = (x: number) => rx + ((x - lo) / (hi - lo)) * rw;
+      ctx.fillStyle = 'rgba(20,10,0,0.55)';
+      ctx.fillRect(rx - u * 0.6, ry - u * 1.1, rw + u * 1.2, u * 2.2);
+      ctx.fillStyle = 'rgba(255,226,176,0.35)';
+      ctx.fillRect(rx, ry - 1, rw, 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(at(0) - u * 0.4, ry - u * 0.4, u * 0.8, u * 0.8);
+      for (const t of s.targets) {
+        const color = INSTRUMENTS[t.kind].color;
+        ctx.beginPath();
+        ctx.arc(at(t.x), ry, u * 0.4, 0, Math.PI * 2);
+        if (t.collected) {
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = 0.5;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+      }
+      ctx.fillStyle = '#ffd27a';
+      ctx.beginPath();
+      ctx.moveTo(at(c.x), ry - u * 0.9);
+      ctx.lineTo(at(c.x) + u * 0.5, ry - u * 0.2);
+      ctx.lineTo(at(c.x) - u * 0.5, ry - u * 0.2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Work in progress: drilling, scanning, imaging or uploading.
+    const active = s.targets.find((t) => t.id === s.activeId);
+    let label = '';
+    let frac = 0;
+    let color = '#ffd27a';
+    if (active) {
+      const ins = INSTRUMENTS[active.kind];
+      label = `${ins.verb} ${ins.label}`;
+      frac = active.progress;
+      color = ins.color;
+    } else if (s.upload > 0) {
+      label = 'UPLOADING DATA';
+      frac = s.upload;
+      color = '#8be07a';
+    }
+    if (label) {
+      const bw = u * 16;
+      ctx.font = `bold ${u * 1.2}px monospace`;
+      ctx.fillStyle = '#ffe2b0';
+      ctx.fillText(`${label} ${Math.round(frac * 100)}%`, cw / 2, ch - u * 10);
+      ctx.fillStyle = 'rgba(255,226,176,0.25)';
+      ctx.fillRect(cw / 2 - bw / 2, ch - u * 9.2, bw, u * 0.9);
+      ctx.fillStyle = color;
+      ctx.fillRect(cw / 2 - bw / 2, ch - u * 9.2, bw * frac, u * 0.9);
+    }
+
+    if (s.toastUntil > w.time && w.status !== 'crashed') {
+      ctx.font = `bold ${u * 1.5}px monospace`;
+      ctx.fillStyle = '#8be07a';
+      ctx.fillText(s.toast, cw / 2, ch * 0.22);
+    }
+
+    if (s.complete) {
+      const pw = u * 26;
+      const ph = u * 13;
+      const x = cw / 2 - pw / 2;
+      const y = ch * 0.45 - ph / 2;
+      ctx.fillStyle = 'rgba(20,10,0,0.78)';
+      ctx.fillRect(x, y, pw, ph);
+      ctx.strokeStyle = '#8be07a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, pw, ph);
+      ctx.fillStyle = '#8be07a';
+      ctx.font = `bold ${u * 2}px monospace`;
+      ctx.fillText('SORTIE COMPLETE', cw / 2, y + u * 3);
+      ctx.fillStyle = '#ffe2b0';
+      ctx.font = `${u * 1.3}px monospace`;
+      ctx.fillText(`Science score ${s.score}`, cw / 2, y + u * 5.6);
+      const m = Math.floor(s.completeTime / 60);
+      const sec = Math.floor(s.completeTime % 60);
+      ctx.font = `${u * 1.1}px monospace`;
+      ctx.fillText(`Mission time ${m}:${String(sec).padStart(2, '0')}`, cw / 2, y + u * 7.6);
+      ctx.fillText(`Battery left ${Math.round(w.battery * 100)}%`, cw / 2, y + u * 9.1);
+      ctx.fillStyle = '#ffd27a';
+      ctx.fillText('Press R to fly again', cw / 2, y + u * 11.4);
+    }
   }
 
   /** Landing-zone pointer, tutorial hint, rotor spin-up bar and touchdown results. */
