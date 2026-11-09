@@ -2,7 +2,7 @@ import { MAX_IMPACT_SPEED, SKID_DROP } from '../sim/constants';
 import { altitudeAGL, type World } from '../sim/world';
 
 /** Visible vertical span of the world in meters. */
-const VIEW_HEIGHT_M = 90;
+const VIEW_HEIGHT_M = 140;
 
 interface Dust {
   x: number;
@@ -49,9 +49,9 @@ export class Renderer {
 
     // Camera follows the craft with a little lead in the direction of travel.
     const c = w.craft;
-    const targetX = c.x + c.vx * 1.2;
+    const targetX = c.x + c.vx * 0.5;
     const targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + VIEW_HEIGHT_M * 0.35);
-    const k = 1 - Math.exp(-3 * Math.max(dt, 1 / 60));
+    const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
 

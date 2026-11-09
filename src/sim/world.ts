@@ -1,10 +1,11 @@
 import {
-  CLIMB_THROTTLE,
-  DESCEND_THROTTLE,
-  DRAG,
+  CLIMB_SPEED,
+  DESCEND_SPEED,
   DRAG_X,
   GRAVITY,
-  H_BOOST,
+  LAND_TAPER_MIN,
+  LAND_TAPER_RATE,
+  H_ACCEL,
   MAX_IMPACT_SPEED,
   MAX_LAND_SLOPE,
   MAX_LAND_TILT,
@@ -14,7 +15,7 @@ import {
   SKID_DROP,
   THROTTLE_RESPONSE,
   TILT_RESPONSE,
-  VS_DAMP,
+  VS_GAIN,
 } from './constants';
 import { Terrain } from './terrain';
 
@@ -88,15 +89,13 @@ export function step(w: World, input: Input, dt: number): void {
   c.pitch += (tiltTarget - c.pitch) * (1 - Math.exp(-TILT_RESPONSE * dt));
   if (Math.abs(input.tilt) > 0.2) c.facing = input.tilt > 0 ? 1 : -1;
 
-  // Arcade auto-hover: baseline throttle cancels gravity at the current tilt.
+  // Arcade vertical control: pilot commands a climb rate, craft tracks it directly (no gravity lag).
+  // Throttle just follows the command so the rotors look and sound right.
+  // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
+  const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
+  const vsTarget = input.climb > 0 ? CLIMB_SPEED * input.climb : descendSpeed * input.climb;
   const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
-  const climbOffset =
-    input.climb > 0
-      ? CLIMB_THROTTLE * input.climb
-      : input.climb < 0
-        ? DESCEND_THROTTLE * -input.climb
-        : (-VS_DAMP * c.vy) / MAX_THRUST_ACCEL;
-  const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + climbOffset, 0, 1);
+  const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
   c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
 
   if (w.status === 'landed') {
@@ -112,11 +111,9 @@ export function step(w: World, input: Input, dt: number): void {
     }
   }
 
-  const thrust = c.throttle * MAX_THRUST_ACCEL;
-  const ax = thrust * Math.sin(c.pitch) * H_BOOST - DRAG_X * c.vx + w.wind;
-  const ay = thrust * Math.cos(c.pitch) - GRAVITY - DRAG * c.vy;
-  c.vx += ax * dt;
-  c.vy += ay * dt;
+  // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
+  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * c.vx + w.wind) * dt;
+  c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
   c.x += c.vx * dt;
   c.y += c.vy * dt;
 
