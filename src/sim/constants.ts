@@ -34,3 +34,39 @@ export const MAX_LAND_SLOPE = 0.35;
 
 /** Fixed simulation step (s). */
 export const FIXED_DT = 1 / 60;
+
+/** Energy. Battery is a fraction in [0, 1]; rates are fractions per second. */
+export const HOVER_DRAIN = 0.01;
+export const CLIMB_DRAIN = 0.012;
+export const TILT_DRAIN = 0.012;
+/** MMRTG trickle: small while flying, much faster once landed. */
+export const FLIGHT_CHARGE = 0.002;
+export const LANDED_CHARGE = 0.03;
+/** Below this the HUD warns. The craft cannot lift off below the takeoff minimum. */
+export const LOW_BATTERY = 0.2;
+export const MIN_TAKEOFF_BATTERY = 0.1;
+
+/** Titan day, compressed (s). The sortie starts just after dawn. */
+export const DAY_LENGTH = 240;
+export const START_PHASE = 0.05;
+/** Night is cold and dark: flight costs more, landed charging is better. */
+export const NIGHT_DRAIN_MULT = 1.25;
+export const NIGHT_CHARGE_MULT = 1.5;
+
+/** Intro descent. The craft starts high and off to the side of the landing zone (x = 0). */
+export const START_X = -220;
+export const START_AGL = 600;
+/** Under the parachute: fall speed (m/s), drift (m/s, negative = away from the pad) and steering speed (m/s). */
+export const CHUTE_SPEED = 40;
+export const CHUTE_WIND = -5;
+export const CHUTE_STEER_SPEED = 30;
+/** The chute is jettisoned automatically at this altitude (m) if the pilot hasn't done it. */
+export const AUTO_RELEASE_AGL = 130;
+/** Rotor spin-up after jettison: duration (s), arcade fall acceleration (m/s^2) and fall speed cap (m/s). */
+export const SPINUP_TIME = 2;
+export const SPINUP_GRAVITY = 14;
+export const SPINUP_MAX_FALL = 60;
+/** Rotors that finish spinning up below this altitude (m) can't arrest the fall. */
+export const MIN_RECOVERY_AGL = 15;
+/** Touching down within this distance (m) of the pad center counts as a bullseye. */
+export const PAD_BULLSEYE = 8;

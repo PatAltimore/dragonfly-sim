@@ -4,16 +4,16 @@ const LEFT = ['ArrowLeft', 'KeyA'];
 const RIGHT = ['ArrowRight', 'KeyD'];
 const UP = ['ArrowUp', 'KeyW', 'Space'];
 const DOWN = ['ArrowDown', 'KeyS'];
-const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR'];
+const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR', 'KeyX'];
 
 export class Keyboard {
   private down = new Set<string>();
-  private restartPressed = false;
+  private pressed = new Set<string>();
 
   constructor(target: Window) {
     target.addEventListener('keydown', (e) => {
       if (GAME_KEYS.includes(e.code)) e.preventDefault();
-      if (e.code === 'KeyR' && !e.repeat) this.restartPressed = true;
+      if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
     });
     target.addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -31,10 +31,8 @@ export class Keyboard {
     };
   }
 
-  /** True once per R keypress. */
-  consumeRestart(): boolean {
-    const r = this.restartPressed;
-    this.restartPressed = false;
-    return r;
+  /** True once per keypress of the given key code (e.g. 'KeyR'). */
+  consumePress(code: string): boolean {
+    return this.pressed.delete(code);
   }
 }

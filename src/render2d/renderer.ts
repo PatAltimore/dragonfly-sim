@@ -1,8 +1,20 @@
-import { MAX_IMPACT_SPEED, SKID_DROP } from '../sim/constants';
-import { altitudeAGL, type World } from '../sim/world';
+import { LOW_BATTERY, MAX_IMPACT_SPEED, MIN_TAKEOFF_BATTERY, PAD_BULLSEYE, SKID_DROP } from '../sim/constants';
+import { dayNumber, daylight, phaseLabel } from '../sim/daynight';
+import { hintFor } from '../ui/hints';
+import { altitudeAGL, isPowerLost, type World } from '../sim/world';
 
-/** Visible vertical span of the world in meters. */
+/** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
 const VIEW_HEIGHT_M = 140;
+const VIEW_ZOOM_OUT_PER_M = 0.35;
+const VIEW_ZOOM_OUT_MAX_AGL = 250;
+
+interface Canopy {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+}
 
 interface Dust {
   x: number;
@@ -18,6 +30,9 @@ export class Renderer {
   private camX = 0;
   private camY = 0;
   private lastTime = 0;
+  private viewH = VIEW_HEIGHT_M;
+  private lastPhase = 'flight';
+  private canopy: Canopy | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -31,6 +46,13 @@ export class Renderer {
     this.camY = w.craft.y + 8;
     this.dust = [];
     this.lastTime = w.time;
+    this.viewH = this.targetViewH(w);
+    this.lastPhase = w.phase;
+    this.canopy = null;
+  }
+
+  private targetViewH(w: World): number {
+    return VIEW_HEIGHT_M + Math.min(Math.max(altitudeAGL(w), 0), VIEW_ZOOM_OUT_MAX_AGL) * VIEW_ZOOM_OUT_PER_M;
   }
 
   draw(w: World): void {
@@ -43,14 +65,15 @@ export class Renderer {
       canvas.height = ch;
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const scale = ch / VIEW_HEIGHT_M;
     const dt = Math.min(0.1, Math.max(0, w.time - this.lastTime));
     this.lastTime = w.time;
+    this.viewH += (this.targetViewH(w) - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
+    const scale = ch / this.viewH;
 
     // Camera follows the craft with a little lead in the direction of travel.
     const c = w.craft;
     const targetX = c.x + c.vx * 0.5;
-    const targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + VIEW_HEIGHT_M * 0.35);
+    const targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
     const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
@@ -59,12 +82,15 @@ export class Renderer {
     const sy = (y: number) => ch / 2 - (y - this.camY) * scale;
 
     this.drawSky(cw, ch);
+    this.drawWisps(cw, ch, scale, sx, sy);
     this.drawFarDunes(cw, ch, scale);
     this.drawTerrain(w, cw, ch, scale, sx, sy);
     this.drawBase(w, scale, sx, sy);
     this.updateDust(w, dt);
     this.drawDust(scale, sx, sy);
+    this.drawCanopy(w, dt, scale, sx, sy);
     this.drawCraft(w, scale, sx, sy);
+    this.drawNight(w, cw, ch, scale, sx, sy);
     this.drawHud(w, cw, ch);
   }
 
@@ -75,6 +101,90 @@ export class Renderer {
     g.addColorStop(1, '#e8a54a');
     this.ctx.fillStyle = g;
     this.ctx.fillRect(0, 0, cw, ch);
+  }
+
+  /** Faint drifting haze streaks fixed in the world, so falling and flying read as motion. */
+  private drawWisps(cw: number, ch: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    const rowH = 28;
+    const colW = 210;
+    const top = this.camY + ch / 2 / scale;
+    const bottom = this.camY - ch / 2 / scale;
+    const left = this.camX - cw / 2 / scale - colW;
+    const right = this.camX + cw / 2 / scale + colW;
+    ctx.fillStyle = 'rgba(255,214,150,0.09)';
+    for (let j = Math.floor(bottom / rowH); j <= Math.ceil(top / rowH); j++) {
+      const hash = Math.abs(Math.sin(j * 127.1) * 43758.5453) % 1;
+      const hash2 = Math.abs(Math.sin(j * 311.7) * 12345.678) % 1;
+      for (let k = Math.floor(left / colW); k <= Math.ceil(right / colW); k++) {
+        const x = k * colW + hash * colW;
+        const y = j * rowH + hash2 * rowH;
+        const len = 30 + hash2 * 60;
+        ctx.beginPath();
+        ctx.ellipse(sx(x), sy(y), len * scale * 0.5, scale * 1.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  private drawCanopyShape(
+    x: number,
+    y: number,
+    scale: number,
+    sx: (x: number) => number,
+    sy: (y: number) => number,
+    craft: { x: number; y: number } | null,
+  ): void {
+    const { ctx } = this;
+    const cx = sx(x);
+    const cy = sy(y);
+    if (craft) {
+      ctx.strokeStyle = 'rgba(235,225,205,0.7)';
+      ctx.lineWidth = Math.max(1, scale * 0.08);
+      ctx.beginPath();
+      for (const dx of [-7, -3.5, 3.5, 7]) {
+        ctx.moveTo(cx + dx * scale, cy);
+        ctx.lineTo(sx(craft.x) + dx * 0.12 * scale, sy(craft.y) - scale * 0.5);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#e9e1d2';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 7.5 * scale, 3.6 * scale, 0, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#d9542b';
+    for (const [a, b] of [[-5.5, -3.5], [-1.8, 1.8], [3.5, 5.5]]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + a * scale, cy);
+      ctx.quadraticCurveTo(cx + ((a + b) / 2) * scale, cy - 3.5 * scale, cx + b * scale, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  /** The parachute: attached during descent, then it peels away when jettisoned. */
+  private drawCanopy(w: World, dt: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const c = w.craft;
+    if (this.lastPhase === 'chute' && w.phase === 'spinup') {
+      this.canopy = { x: c.x, y: c.y + 9, vx: c.vx - 4, vy: -18, age: 0 };
+    }
+    this.lastPhase = w.phase;
+    if (w.phase === 'chute') {
+      this.drawCanopyShape(c.x + c.pitch * 12, c.y + 9, scale, sx, sy, c);
+    } else if (this.canopy) {
+      const k = this.canopy;
+      k.age += dt;
+      k.x += k.vx * dt;
+      k.y += k.vy * dt;
+      if (k.age < 6) {
+        this.ctx.globalAlpha = Math.max(0, 1 - k.age / 6);
+        this.drawCanopyShape(k.x, k.y, scale, sx, sy, null);
+        this.ctx.globalAlpha = 1;
+      } else {
+        this.canopy = null;
+      }
+    }
   }
 
   /** Haze-faded dune layers with parallax. */
@@ -91,7 +201,7 @@ export class Renderer {
       for (let px = 0; px <= cw; px += 8) {
         const wx = this.camX * L.par + (px - cw / 2) / scale;
         const h = Math.sin(wx * L.freq) * L.amp + Math.sin(wx * L.freq * 2.7 + 1.3) * L.amp * 0.4;
-        const camShift = (this.camY - 30) * scale * L.par * 0.5;
+        const camShift = (this.camY - 30) * scale * L.par;
         ctx.lineTo(px, ch * L.off + camShift - h * scale * 0.5);
       }
       ctx.lineTo(cw, ch);
@@ -126,18 +236,28 @@ export class Renderer {
     ctx.stroke();
   }
 
-  /** Landing pad at x = 0. */
+  /** Landing zone at x = 0: pad, bullseye marks and blinking beacons. */
   private drawBase(w: World, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
     const { ctx } = this;
     const gy = w.terrain.heightAt(0);
     ctx.fillStyle = '#6e6e6e';
-    ctx.fillRect(sx(-6), sy(gy), 12 * scale, 0.5 * scale);
-    ctx.fillStyle = '#d8d8d8';
-    for (let i = -5; i <= 5; i += 2) ctx.fillRect(sx(i) - scale * 0.15, sy(gy) + scale * 0.1, scale * 0.3, scale * 0.3);
+    ctx.fillRect(sx(-12), sy(gy), 24 * scale, 0.5 * scale);
+    ctx.fillStyle = '#ffd27a';
+    ctx.fillRect(sx(-PAD_BULLSEYE), sy(gy), 2 * PAD_BULLSEYE * scale, 0.5 * scale);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(sx(-PAD_BULLSEYE + 1), sy(gy) + scale * 0.1, (2 * PAD_BULLSEYE - 2) * scale, scale * 0.3);
+    ctx.fillStyle = '#ffd27a';
+    for (const x of [-12, 12]) ctx.fillRect(sx(x) - scale * 0.15, sy(gy) - 5 * scale, scale * 0.3, 5 * scale);
+    ctx.fillStyle = Math.floor(w.time * 2) % 2 === 0 ? '#ff5a3a' : '#7a2a1a';
+    for (const x of [-12, 12]) {
+      ctx.beginPath();
+      ctx.arc(sx(x), sy(gy) - 5 * scale, scale * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = '#e6e6e6';
     ctx.font = `${Math.round(scale * 1.6)}px monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText('BASE', sx(0), sy(gy) + scale * 2.6);
+    ctx.fillText('LZ', sx(0), sy(gy) + scale * 2.6);
   }
 
   private updateDust(w: World, dt: number): void {
@@ -229,6 +349,34 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Darkness overlay with warm light pools around the craft and the base pad. */
+  private drawNight(
+    w: World,
+    cw: number,
+    ch: number,
+    scale: number,
+    sx: (x: number) => number,
+    sy: (y: number) => number,
+  ): void {
+    const dark = 1 - daylight(w.time);
+    if (dark < 0.02) return;
+    const { ctx } = this;
+    ctx.fillStyle = `rgba(6,6,28,${(dark * 0.8).toFixed(3)})`;
+    ctx.fillRect(0, 0, cw, ch);
+
+    const pool = (x: number, y: number, radius: number, strength: number) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      g.addColorStop(0, `rgba(255,200,120,${(strength * dark).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(255,200,120,0)');
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = g;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      ctx.globalCompositeOperation = 'source-over';
+    };
+    pool(sx(w.craft.x), sy(w.craft.y), scale * 30, 0.5);
+    pool(sx(0), sy(w.terrain.heightAt(0)), scale * 14, 0.45);
+  }
+
   private drawHud(w: World, cw: number, ch: number): void {
     const { ctx } = this;
     const c = w.craft;
@@ -238,25 +386,35 @@ export class Renderer {
     ctx.textAlign = 'left';
     const agl = altitudeAGL(w);
     const risky = w.status === 'flying' && agl < 10 && -c.vy > MAX_IMPACT_SPEED * 0.8;
+    const low = w.battery < LOW_BATTERY;
+    const blink = Math.floor(w.time * 3) % 2 === 0;
 
     const lines: [string, string][] = [
       ['ALT', `${agl.toFixed(1)} m`],
       ['V/S', `${c.vy.toFixed(1)} m/s`],
       ['H/S', `${c.vx.toFixed(1)} m/s`],
       ['DIST', `${c.x.toFixed(0)} m`],
+      ['SOL', `${dayNumber(w.time)} ${phaseLabel(w.time)}`],
+      ['BATT', `${Math.round(w.battery * 100)}%`],
     ];
-    ctx.fillStyle = 'rgba(20,10,0,0.45)';
-    ctx.fillRect(u * 0.6, u * 0.6, u * 11, u * (lines.length * 1.35 + 2.4));
+    ctx.fillStyle = 'rgba(20,10,0,0.55)';
+    ctx.fillRect(u * 0.6, u * 0.6, u * 11, u * (lines.length * 1.35 + 1.9));
     lines.forEach(([k, v], i) => {
-      ctx.fillStyle = k === 'V/S' && risky ? '#ff6a4a' : '#ffe2b0';
+      let color = '#ffe2b0';
+      if (k === 'V/S' && risky) color = '#ff6a4a';
+      if (k === 'BATT' && low) color = blink ? '#ff6a4a' : '#ffe2b0';
+      ctx.fillStyle = color;
       ctx.fillText(`${k.padEnd(5)}${v}`, u, u * (1.9 + i * 1.35));
     });
-    // Throttle bar
+    // Battery bar with the takeoff minimum marked.
     const by = u * (1.9 + lines.length * 1.35) - u * 0.2;
+    const bw = u * 9.5;
     ctx.fillStyle = 'rgba(255,226,176,0.25)';
-    ctx.fillRect(u, by, u * 9.5, u * 0.7);
-    ctx.fillStyle = '#ffd27a';
-    ctx.fillRect(u, by, u * 9.5 * Math.min(1, c.throttle), u * 0.7);
+    ctx.fillRect(u, by, bw, u * 0.7);
+    ctx.fillStyle = low ? '#ff6a4a' : '#8be07a';
+    ctx.fillRect(u, by, bw * w.battery, u * 0.7);
+    ctx.fillStyle = '#ffe2b0';
+    ctx.fillRect(u + bw * MIN_TAKEOFF_BATTERY - 1, by - u * 0.15, 2, u * 1.0);
 
     // Status banner
     ctx.textAlign = 'center';
@@ -268,13 +426,86 @@ export class Renderer {
       ctx.fillStyle = '#ffe2b0';
       ctx.fillText(w.message, cw / 2, ch * 0.35 + u * 2);
       ctx.fillText('Press R to restart', cw / 2, ch * 0.35 + u * 3.8);
-    } else if (w.status === 'landed') {
+    } else if (isPowerLost(w)) {
+      ctx.fillStyle = blink ? '#ff6a4a' : '#ffe2b0';
+      ctx.font = `bold ${u * 1.8}px monospace`;
+      ctx.fillText(w.message, cw / 2, ch * 0.3);
+    } else if (w.status === 'flying' && low) {
+      ctx.fillStyle = blink ? '#ff6a4a' : '#ffe2b0';
+      ctx.font = `bold ${u * 1.5}px monospace`;
+      ctx.fillText('LOW BATTERY - land to recharge', cw / 2, ch * 0.3);
+    } else if (w.status === 'landed' && !(w.landing && !w.landing.dismissed)) {
       ctx.fillStyle = '#ffe2b0';
       ctx.font = `${u * 1.3}px monospace`;
       ctx.fillText(w.message, cw / 2, ch * 0.3);
     }
+
+    this.drawIntroHud(w, cw, ch, u);
+
+    ctx.textAlign = 'center';
     ctx.font = `${u * 0.9}px monospace`;
     ctx.fillStyle = 'rgba(255,226,176,0.7)';
-    ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart', cw / 2, ch - u * 0.8);
+    ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro', cw / 2, ch - u * 0.8);
+  }
+
+  /** Landing-zone pointer, tutorial hint, rotor spin-up bar and touchdown results. */
+  private drawIntroHud(w: World, cw: number, ch: number, u: number): void {
+    if (!w.intro) return;
+    const { ctx } = this;
+    ctx.textAlign = 'center';
+
+    if (!w.landing && w.status !== 'crashed') {
+      const dx = -w.craft.x;
+      const arrow = dx > 0 ? '►' : '◄';
+      const label = Math.abs(dx) < PAD_BULLSEYE ? 'LZ  OVER TARGET' : dx > 0 ? `LZ ${Math.abs(dx).toFixed(0)} m ${arrow}` : `${arrow} ${Math.abs(dx).toFixed(0)} m LZ`;
+      ctx.font = `bold ${u * 1.4}px monospace`;
+      ctx.fillStyle = '#ffd27a';
+      ctx.fillText(label, cw / 2, u * 2.2);
+    }
+
+    const hint = hintFor(w);
+    if (hint) {
+      ctx.font = `${u * 1.2}px monospace`;
+      const tw = ctx.measureText(hint).width;
+      ctx.fillStyle = 'rgba(20,10,0,0.55)';
+      ctx.fillRect(cw / 2 - tw / 2 - u, ch - u * 6.6, tw + u * 2, u * 2.2);
+      ctx.fillStyle = '#ffe2b0';
+      ctx.fillText(hint, cw / 2, ch - u * 5.1);
+    }
+
+    if (w.phase === 'spinup') {
+      const bw = u * 16;
+      const x = cw / 2 - bw / 2;
+      const y = ch - u * 8.2;
+      ctx.fillStyle = 'rgba(255,226,176,0.25)';
+      ctx.fillRect(x, y, bw, u * 0.9);
+      ctx.fillStyle = '#ffd27a';
+      ctx.fillRect(x, y, bw * w.spin, u * 0.9);
+    }
+
+    const r = w.landing;
+    if (r && !r.dismissed && w.status === 'landed') {
+      const pw = u * 26;
+      const ph = u * 15;
+      const x = cw / 2 - pw / 2;
+      const y = ch * 0.5 - ph / 2;
+      ctx.fillStyle = 'rgba(20,10,0,0.75)';
+      ctx.fillRect(x, y, pw, ph);
+      ctx.strokeStyle = '#ffd27a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, pw, ph);
+      ctx.fillStyle = '#ffd27a';
+      ctx.font = `bold ${u * 2}px monospace`;
+      ctx.fillText(`TOUCHDOWN: ${r.rating}`, cw / 2, y + u * 3);
+      ctx.fillStyle = '#ffe2b0';
+      ctx.font = `${u * 1.3}px monospace`;
+      ctx.fillText(`Score ${r.score} / 1000`, cw / 2, y + u * 5.4);
+      ctx.font = `${u * 1.1}px monospace`;
+      ctx.fillText(`Off target   ${r.offset.toFixed(0)} m`, cw / 2, y + u * 7.4);
+      ctx.fillText(`Ground speed ${r.slide.toFixed(1)} m/s`, cw / 2, y + u * 8.9);
+      ctx.fillText(`Battery left ${Math.round(r.battery * 100)}%`, cw / 2, y + u * 10.4);
+      ctx.fillStyle = '#ffd27a';
+      ctx.fillText('Press ↑ to take off and begin the sortie', cw / 2, y + u * 13);
+    }
   }
 }

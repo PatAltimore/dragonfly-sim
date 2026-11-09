@@ -18,8 +18,10 @@ function frame(now: number): void {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
 
-  if (keyboard.consumeRestart()) {
-    world = createWorld(SEED);
+  const restart = keyboard.consumePress('KeyR');
+  const skipIntro = keyboard.consumePress('KeyX');
+  if (restart || skipIntro) {
+    world = createWorld(SEED, { intro: !skipIntro });
     renderer.resetCamera(world);
     acc = 0;
   }
