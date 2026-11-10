@@ -11,6 +11,7 @@ import {
 import { daylight } from '../sim/daynight';
 import { drawHud } from '../ui/hud';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
+import { cellCenter } from '../sim/obstacles';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
 
 /** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
@@ -99,8 +100,12 @@ export class Renderer {
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
 
-    const sx = (x: number) => cw / 2 + (x - this.camX) * scale;
-    const sy = (y: number) => ch / 2 - (y - this.camY) * scale;
+    // Turbulence shakes the view.
+    const shake = w.turbulence;
+    const shakeX = shake > 0.02 ? (Math.sin(w.time * 53) + Math.sin(w.time * 31.7)) * 0.45 * shake : 0;
+    const shakeY = shake > 0.02 ? (Math.sin(w.time * 47) + Math.sin(w.time * 29.3)) * 0.45 * shake : 0;
+    const sx = (x: number) => cw / 2 + (x - this.camX + shakeX) * scale;
+    const sy = (y: number) => ch / 2 - (y - this.camY + shakeY) * scale;
 
     this.drawSky(cw, ch);
     this.drawWisps(cw, ch, scale, sx, sy);
@@ -108,14 +113,84 @@ export class Renderer {
     this.drawTerrain(w, cw, ch, scale, sx, sy);
     this.drawBase(w, scale, sx, sy);
     this.drawTargets(w, scale, sx, sy);
+    this.drawSpires(w, cw, scale, sx, sy);
     this.updateDust(w, dt);
     this.drawDust(scale, sx, sy);
     this.drawFog(w, cw, ch, scale, sy);
+    this.drawCells(w, cw, scale, sx, sy);
     this.drawCanopy(w, dt, scale, sx, sy);
     this.drawCraft(w, scale, sx, sy);
     this.drawWeatherFx(w, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
     if (hud) drawHud(ctx, w, cw, ch, this.keyHints);
+  }
+
+  /** Rock spires: solid obstacles to climb over, with a blinking warning lamp on the tip. */
+  private drawSpires(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    const reach = cw / 2 / scale + 15;
+    const blink = Math.floor(w.time * 2) % 2 === 0;
+    for (const s of w.obstacles.spires) {
+      if (Math.abs(s.x - this.camX) > reach) continue;
+      const surface = w.terrain.heightAt(s.x);
+      const top = surface + s.height;
+      const left = sx(s.x - s.baseHalf);
+      const right = sx(s.x + s.baseHalf);
+      ctx.beginPath();
+      ctx.moveTo(left, sy(surface - 3));
+      ctx.lineTo(sx(s.x - s.topHalf), sy(top - 2));
+      ctx.lineTo(sx(s.x - s.topHalf * 0.3), sy(top + 1.5));
+      ctx.lineTo(sx(s.x + s.topHalf), sy(top - 1));
+      ctx.lineTo(right, sy(surface - 3));
+      ctx.closePath();
+      const g = ctx.createLinearGradient(left, 0, right, 0);
+      g.addColorStop(0, '#3b2d20');
+      g.addColorStop(0.55, '#5e4930');
+      g.addColorStop(1, '#2a1f16');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = '#8a6a44';
+      ctx.lineWidth = Math.max(1, scale * 0.2);
+      ctx.stroke();
+      ctx.fillStyle = blink ? '#ff5a3a' : '#7a2a1a';
+      ctx.beginPath();
+      ctx.arc(sx(s.x), sy(top + 2.6), scale * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** Turbulence cells: swirling dark cloud with an arrow showing whether it is an updraft or a downdraft. */
+  private drawCells(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    for (const cell of w.obstacles.cells) {
+      const ctr = cellCenter(w, cell);
+      if (Math.abs(ctr.x - this.camX) > cw / 2 / scale + cell.radius) continue;
+      const px = sx(ctr.x);
+      const py = sy(ctr.y);
+      const r = cell.radius * scale;
+      const down = cell.lift < 0;
+      const g = ctx.createRadialGradient(px, py, r * 0.1, px, py, r);
+      g.addColorStop(0, down ? 'rgba(40,44,70,0.7)' : 'rgba(120,96,72,0.6)');
+      g.addColorStop(1, 'rgba(60,60,80,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(200,205,235,0.45)';
+      ctx.lineWidth = Math.max(1, scale * 0.3);
+      for (let k = 0; k < 3; k++) {
+        const a0 = w.time * (1.5 - 0.3 * k) + cell.phase + k * 2;
+        ctx.beginPath();
+        ctx.arc(px, py, r * (0.35 + 0.2 * k), a0, a0 + 2.2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = `bold ${Math.round(r * 0.5)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(down ? '▼' : '▲', px, py);
+      ctx.textBaseline = 'alphabetic';
+    }
   }
 
   private drawSky(cw: number, ch: number): void {

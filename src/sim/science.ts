@@ -113,7 +113,7 @@ export function stepScience(w: World, dt: number): void {
         agl <= PHOTO_MAX_AGL &&
         Math.abs(c.vx) <= PHOTO_MAX_SPEED;
     if (inPosition) {
-      t.progress += dt / ins.needTime;
+      t.progress += dt / (ins.needTime * w.difficulty.scienceTime);
       s.activeId = t.id;
     } else {
       t.progress = Math.max(0, t.progress - PROGRESS_DECAY * dt);

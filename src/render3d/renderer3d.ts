@@ -11,6 +11,7 @@ import {
 } from '../sim/constants';
 import { daylight } from '../sim/daynight';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
+import { cellCenter, type Obstacles } from '../sim/obstacles';
 import { drawHud } from '../ui/hud';
 import type { Surface } from '../ui/screens';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
@@ -207,6 +208,12 @@ export class Renderer3D implements SceneRenderer {
   private targetsRef: object | null = null;
   private targetRoot = new THREE.Group();
 
+  private spireRoot = new THREE.Group();
+  private cellRoot = new THREE.Group();
+  private spireLamps: THREE.Mesh[] = [];
+  private cellModels: { group: THREE.Group; outer: THREE.MeshBasicMaterial; rings: THREE.Mesh[]; phase: number }[] = [];
+  private obstaclesRef: Obstacles | null = null;
+
   private rain: THREE.LineSegments;
   private wind: THREE.LineSegments;
   private dustPoints: THREE.Points;
@@ -288,7 +295,7 @@ export class Renderer3D implements SceneRenderer {
     this.canopyLines = this.canopyGroup.children.find((o) => o instanceof THREE.LineSegments) as THREE.LineSegments;
     this.scene.add(this.canopyGroup);
 
-    this.scene.add(this.targetRoot);
+    this.scene.add(this.targetRoot, this.spireRoot, this.cellRoot);
 
     // Weather: rain streaks, wind streaks and thrown-up dust.
     this.rain = this.streaks(700, 0xbfd0ea);
@@ -425,6 +432,98 @@ export class Renderer3D implements SceneRenderer {
     this.steepGeo.setDrawRange(0, n * 6);
   }
 
+  /** Rebuild the rock spires and turbulence cells for a world. */
+  private rebuildObstacles(w: World): void {
+    for (const root of [this.spireRoot, this.cellRoot]) {
+      for (const child of [...root.children]) {
+        root.remove(child);
+        child.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          mesh.geometry?.dispose();
+          const mat = mesh.material as THREE.Material | undefined;
+          mat?.dispose();
+        });
+      }
+    }
+    this.spireLamps = [];
+    this.cellModels = [];
+
+    for (const s of w.obstacles.spires) {
+      const surface = w.terrain.heightAt(s.x);
+      const geo = new THREE.CylinderGeometry(s.topHalf, s.baseHalf, s.height + 3, 8, 4);
+      // Roughen the column so it reads as rock rather than a pipe.
+      const p = geo.getAttribute('position');
+      for (let i = 0; i < p.count; i++) {
+        const y = p.getY(i);
+        p.setX(i, p.getX(i) * (1 + 0.2 * noise2(p.getX(i) * 0.7 + s.x, y * 0.3)));
+        p.setZ(i, p.getZ(i) * (1 + 0.2 * noise2(p.getZ(i) * 0.7 + s.x, y * 0.3 + 9)));
+      }
+      geo.computeVertexNormals();
+      const rock = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: '#7a5f42', flatShading: true }));
+      rock.position.set(s.x, surface - 3 + (s.height + 3) / 2, 0);
+      this.spireRoot.add(rock);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 8), unlit('#ff5a3a'));
+      lamp.position.set(s.x, surface + s.height + 1.8, 0);
+      this.spireRoot.add(lamp);
+      this.spireLamps.push(lamp);
+    }
+
+    for (const cell of w.obstacles.cells) {
+      const down = cell.lift < 0;
+      const group = new THREE.Group();
+      const outerMat = new THREE.MeshBasicMaterial({
+        color: down ? '#3d4466' : '#7a6650',
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+        fog: false,
+      });
+      group.add(new THREE.Mesh(new THREE.SphereGeometry(cell.radius, 24, 16), outerMat));
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: down ? '#232848' : '#5a4838',
+        transparent: true,
+        opacity: 0.25,
+        depthWrite: false,
+        fog: false,
+      });
+      group.add(new THREE.Mesh(new THREE.SphereGeometry(cell.radius * 0.6, 20, 12), innerMat));
+      const rings: THREE.Mesh[] = [];
+      for (let k = 0; k < 2; k++) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(cell.radius * (0.8 - k * 0.22), 0.7, 6, 48),
+          new THREE.MeshBasicMaterial({ color: 0xc9d0ff, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
+        );
+        rings.push(ring);
+        group.add(ring);
+      }
+      // The arrow says which way the air is going: down is the dangerous one.
+      const arrow = new THREE.Mesh(
+        new THREE.ConeGeometry(cell.radius * 0.22, cell.radius * 0.5, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, fog: false }),
+      );
+      arrow.rotation.x = down ? Math.PI : 0;
+      group.add(arrow);
+      this.cellRoot.add(group);
+      this.cellModels.push({ group, outer: outerMat, rings, phase: cell.phase });
+    }
+    this.obstaclesRef = w.obstacles;
+  }
+
+  private updateObstacles(w: World): void {
+    const blink = Math.floor(w.time * 2) % 2 === 0;
+    for (const lamp of this.spireLamps) (lamp.material as THREE.MeshBasicMaterial).color.set(blink ? '#ff5a3a' : '#6a2214');
+    w.obstacles.cells.forEach((cell, i) => {
+      const m = this.cellModels[i];
+      if (!m) return;
+      const ctr = cellCenter(w, cell);
+      m.group.position.set(ctr.x, ctr.y, 0);
+      m.rings[0].rotation.set(Math.PI / 2 + 0.35, w.time * 1.4 + m.phase, 0);
+      m.rings[1].rotation.set(Math.PI / 2 - 0.5, -w.time * 1.9 + m.phase, 0.4);
+      // An occasional flicker, like lightning inside the cloud.
+      m.outer.opacity = 0.27 + 0.18 * Math.max(0, Math.sin(w.time * 5 + m.phase)) ** 8;
+    });
+  }
+
   private rebuildTargets(w: World): void {
     for (const t of this.targets) {
       this.targetRoot.remove(t.group);
@@ -528,6 +627,7 @@ export class Renderer3D implements SceneRenderer {
     const c = w.craft;
 
     if (this.targetsRef !== w.science.targets) this.rebuildTargets(w);
+    if (this.obstaclesRef !== w.obstacles) this.rebuildObstacles(w);
     if (this.terrainRef !== w.terrain) {
       this.terrainRef = w.terrain;
       this.snapX = Number.NaN;
@@ -541,12 +641,16 @@ export class Renderer3D implements SceneRenderer {
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
     const dist = this.viewH / 2 / Math.tan((FOV_DEG * Math.PI) / 360);
+    // Turbulence shakes the view.
+    const shake = w.turbulence;
+    const shx = shake > 0.02 ? (Math.sin(w.time * 53) + Math.sin(w.time * 31.7)) * 0.012 * this.viewH * shake : 0;
+    const shy = shake > 0.02 ? (Math.sin(w.time * 47) + Math.sin(w.time * 29.3)) * 0.012 * this.viewH * shake : 0;
     this.camera.position.set(
-      this.camX - Math.sin(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
-      this.camY + Math.sin(CAM_PITCH) * dist,
+      this.camX + shx - Math.sin(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
+      this.camY + shy + Math.sin(CAM_PITCH) * dist,
       Math.cos(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
     );
-    this.camera.lookAt(this.camX, this.camY, 0);
+    this.camera.lookAt(this.camX + shx, this.camY + shy, 0);
 
     // Terrain grid recenters on a lattice so vertices stay put in the world.
     const snap = Math.round(this.camX / GRID_DX) * GRID_DX;
@@ -560,6 +664,7 @@ export class Renderer3D implements SceneRenderer {
     this.updateCraft(w, dt);
     this.updateCanopy(w, dt);
     this.updateTargets(w, dt);
+    this.updateObstacles(w);
     this.updateEffects(w, dt);
     for (let i = 0; i < this.baseLights.length; i++) {
       (this.baseLights[i].material as THREE.MeshBasicMaterial).color.set(Math.floor(w.time * 2) % 2 === 0 ? '#ff5a3a' : '#6a2214');

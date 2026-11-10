@@ -1,9 +1,11 @@
+import { DIFFICULTIES, DIFFICULTY_ORDER } from '../content/difficulty';
 import { INSTRUMENTS, type InstrumentId } from '../content/instruments';
 import { LEVELS, type Level } from '../content/levels';
 import { DID_YOU_KNOW } from '../content/library';
 import { isUnlocked, type Progress } from '../save/progress';
 import { phaseLabel } from '../sim/daynight';
 import type { RunResult } from '../sim/scoring';
+import type { World } from '../sim/world';
 
 /** The canvas drawing surface the screens paint onto. */
 export interface Surface {
@@ -102,10 +104,26 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
   const x = s.cw / 2 - w / 2;
   text(s, 'DRAGONFLY', s.cw / 2, u * 4.2, u * 3.4, GOLD, 'center', true);
   text(s, 'TITAN SORTIE', s.cw / 2, u * 6.6, u * 1.7, CREAM);
-  text(s, 'Pilot NASA\'s nuclear-powered rotorcraft across the dunes of Saturn\'s moon', s.cw / 2, u * 8.6, u * 0.95, DIM);
+  // Difficulty chips: Easy, Medium and Hard, with the selected one's blurb underneath.
+  const chipW = Math.min(u * 11, (s.cw * 0.9 - u * 1.6) / 3);
+  const chipGap = u * 0.8;
+  const chipX = s.cw / 2 - (chipW * 3 + chipGap * 2) / 2;
+  DIFFICULTY_ORDER.forEach((id, i) => {
+    const spec = DIFFICULTIES[id];
+    const on = progress.difficulty === id;
+    const cx0 = chipX + i * (chipW + chipGap);
+    s.ctx.fillStyle = on ? 'rgba(255,255,255,0.12)' : 'rgba(255,210,122,0.05)';
+    s.ctx.fillRect(cx0, u * 8, chipW, u * 2.4);
+    s.ctx.strokeStyle = on ? spec.color : DIM;
+    s.ctx.lineWidth = on ? 3 : 1;
+    s.ctx.strokeRect(cx0, u * 8, chipW, u * 2.4);
+    text(s, spec.label, cx0 + chipW / 2, u * 9.6, u * 1.05, on ? spec.color : CREAM, 'center', on);
+    hits.push({ id: `diff:${i}`, x: cx0, y: u * 8, w: chipW, h: u * 2.4 });
+  });
+  text(s, DIFFICULTIES[progress.difficulty].tagline, s.cw / 2, u * 11.6, u * 0.9, DIM);
 
   const rowH = u * 2.5;
-  const top = u * 10.4;
+  const top = u * 12.9;
   panel(s, x, top - u * 0.8, w, rowH * LEVELS.length + u * 1.6);
   LEVELS.forEach((lv, i) => {
     const y = top + i * rowH;
@@ -119,8 +137,10 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
     text(s, lv.name, x + u * 3.4, y + u * 0.6, u * 1.25, color, 'left', true);
     text(s, open ? lv.tagline : 'Locked: clear the previous sortie', x + u * 3.4, y + u * 1.75, u * 0.85, DIM, 'left');
     if (open) {
-      text(s, stars(progress.stars[i]), x + w - u * 1.2, y + u * 0.7, u * 1.3, progress.stars[i] ? GOLD : DIM, 'right');
-      if (progress.best[i] > 0) text(s, `best ${progress.best[i]}`, x + w - u * 1.2, y + u * 1.8, u * 0.85, DIM, 'right');
+      const earned = progress.stars[progress.difficulty][i];
+      const best = progress.best[progress.difficulty][i];
+      text(s, stars(earned), x + w - u * 1.2, y + u * 0.7, u * 1.3, earned ? GOLD : DIM, 'right');
+      if (best > 0) text(s, `best ${best}`, x + w - u * 1.2, y + u * 1.8, u * 0.85, DIM, 'right');
     }
     hits.push({ id: `row:${i}`, x, y: y - u * 0.5, w, h: rowH });
   });
@@ -128,11 +148,12 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
   hits.push(button(s, 'view', view3d ? 'VIEW: 3D' : 'VIEW: 2D', u * 1, u * 1, u * 8.6, u * 2.4));
   const fileW = Math.min(u * 32, s.cw * 0.9);
   hits.push(button(s, 'library', 'MISSION FILE: Titan and the science (L)', s.cw / 2 - fileW / 2, top + rowH * LEVELS.length + u * 1.5, fileW, u * 2.6));
-  text(s, '↑/↓ or tap: choose   Enter: launch   M sound   V view   L file', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
+  text(s, '↑/↓ sortie   ←/→ difficulty   Enter launch   M sound   V view   L file', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
   return hits;
 }
 
-export function drawBriefing(s: Surface, level: Level, index: number): Hit[] {
+export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
+  const level = world.level;
   dim(s, 0.7);
   const u = unit(s);
   const w = Math.min(s.cw * 0.94, u * 48);
@@ -140,7 +161,7 @@ export function drawBriefing(s: Surface, level: Level, index: number): Hit[] {
   const y = u * 2.4;
   const h = s.ch - u * 5;
   panel(s, x, y, w, h);
-  text(s, `SORTIE ${index + 1}`, s.cw / 2, y + u * 2.6, u * 1.2, DIM);
+  text(s, `SORTIE ${index + 1}   ${world.difficulty.label}`, s.cw / 2, y + u * 2.6, u * 1.2, world.difficulty.color, 'center', true);
   text(s, level.name.toUpperCase(), s.cw / 2, y + u * 5, u * 2.6, GOLD, 'center', true);
 
   const counts: Record<InstrumentId, number> = { dragms: 0, dragns: 0, dragoncam: 0 };
@@ -165,7 +186,16 @@ export function drawBriefing(s: Surface, level: Level, index: number): Hit[] {
   stat('Max science', `${maxScience(level)} pts, farthest ${far} m out`);
   stat('Starts at', `${phaseLabel(level.clockOffset)}${level.intro ? ', with parachute descent' : ''}`);
   stat('Weather', weather.length ? weather.join(', ') : 'calm', weather.length ? GOLD : GREEN);
-  stat('Par time', mmss(level.parTime));
+  const { spires, cells } = world.obstacles;
+  const hazardous = spires.length + cells.length > 0;
+  stat(
+    'Obstacles',
+    hazardous
+      ? `${spires.length} rock spires (up to ${Math.round(Math.max(...spires.map((sp) => sp.height)))} m), ${cells.length} turbulence cells`
+      : 'none',
+    hazardous ? world.difficulty.color : GREEN,
+  );
+  stat('Par time', `${mmss(level.parTime)}    score x${world.difficulty.scoreMult}`);
 
   row += u * 0.6;
   const lineH = u * 1.25;
@@ -228,12 +258,12 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.94, u * 40);
-  const h = u * (r.completed ? 31 : 24);
+  const h = u * (r.completed ? 33 : 24);
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h, r.completed ? GREEN : RED);
   text(s, r.completed ? 'SORTIE COMPLETE' : 'MISSION LOST', s.cw / 2, y + u * 3.2, u * 2.4, r.completed ? GREEN : RED, 'center', true);
-  text(s, `Sortie ${index + 1}: ${level.name}`, s.cw / 2, y + u * 5.2, u * 1.1, DIM);
+  text(s, `Sortie ${index + 1}: ${level.name}  (${r.difficulty})`, s.cw / 2, y + u * 5.2, u * 1.1, DIM);
 
   let row = y + u * 7.8;
   const line = (label: string, value: string, color = CREAM) => {
@@ -247,6 +277,7 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
     line('Science uploaded', `${r.science}`);
     line(`Time ${mmss(r.time)} (par ${mmss(level.parTime)})`, `+${r.timeBonus}`);
     line(`Battery ${Math.round(r.battery * 100)}%`, `+${r.batteryBonus}`);
+    if (r.difficultyMult !== 1) line(`${r.difficulty} difficulty x${r.difficultyMult}`, `+${r.difficultyBonus}`, GREEN);
     row += u * 0.3;
     line('TOTAL', `${r.total}`, GOLD);
     if (newBest) text(s, 'NEW BEST', s.cw / 2, row, u * 1.2, GREEN, 'center', true);

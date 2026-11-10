@@ -38,7 +38,9 @@ import {
 import { stepDescent } from './descent';
 import { isNight } from './daynight';
 import { gustAt, rainAt } from './hazards';
+import { applyDifficulty, DIFFICULTIES, type Difficulty, type DifficultySpec } from '../content/difficulty';
 import type { Level } from '../content/levels';
+import { generateObstacles, spireHit, turbulenceAt, type Obstacles } from './obstacles';
 import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
 
@@ -87,7 +89,10 @@ export interface LandingResult {
 
 export interface World {
   terrain: Terrain;
+  /** The sortie as flown: the level's settings already scaled by the difficulty. */
   level: Level;
+  difficulty: DifficultySpec;
+  obstacles: Obstacles;
   phase: Phase;
   /** Rotor spin-up progress in [0, 1] during the 'spinup' phase. */
   spin: number;
@@ -104,6 +109,8 @@ export interface World {
   battery: number;
   /** Horizontal wind acceleration (m/s^2), reserved for hazards. */
   wind: number;
+  /** How hard turbulence is buffeting the craft right now, 0 to 1. */
+  turbulence: number;
 }
 
 export const NO_INPUT: Input = { tilt: 0, climb: 0 };
@@ -114,19 +121,25 @@ export const weatherActive = (w: World): boolean => !w.intro || w.landing !== nu
 /** Seconds on the Titan day clock: sim time plus the level's starting offset. */
 export const clockOf = (w: World): number => w.time + w.level.clockOffset;
 
-export function createWorld(level: Level, opts: { skipIntro?: boolean } = {}): World {
+export function createWorld(source: Level, opts: { skipIntro?: boolean; difficulty?: Difficulty } = {}): World {
+  const difficulty = DIFFICULTIES[opts.difficulty ?? 'easy'];
+  const level = applyDifficulty(source, difficulty);
   const intro = level.intro && !opts.skipIntro;
   const terrain = new Terrain(level.seed, 25, level.ridgeAmp);
+  const science = createScience(terrain, level.targets, intro ? 0 : 20);
   const base = {
     terrain,
     level,
+    difficulty,
+    obstacles: generateObstacles(level, science.targets.map((t) => t.x), difficulty),
     spin: 1,
     intro,
     landing: null,
-    science: createScience(terrain, level.targets, intro ? 0 : 20),
+    science,
     time: 0,
     battery: 1,
     wind: 0,
+    turbulence: 0,
   };
   if (intro) {
     const y = terrain.groundUnder(START_X) + START_AGL + SKID_DROP;
@@ -180,6 +193,8 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Weather bites once the pilot is on the sortie: gusts push, rain thickens the air.
   const weatherOn = weatherActive(w);
   const rain = weatherOn ? rainAt(w.level.zones, c.x, w.time) : 0;
+  /** Rain as it bites at this difficulty. */
+  const wet = rain * w.difficulty.weatherMult;
   w.wind = weatherOn ? gustAt(w.level.gust, w.time).accel : 0;
 
   // Energy gates control: no power means an automatic, level descent; a flat battery can't lift off.
@@ -197,12 +212,13 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
   const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
   const vsTarget =
-    input.climb > 0 ? CLIMB_SPEED * (1 - RAIN_CLIMB_PENALTY * rain) * input.climb : descendSpeed * input.climb;
+    input.climb > 0 ? CLIMB_SPEED * (1 - Math.min(0.75, RAIN_CLIMB_PENALTY * wet)) * input.climb : descendSpeed * input.climb;
   const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
   const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
   c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
 
   const night = isNight(clockOf(w));
+  w.turbulence = 0;
   if (w.status === 'landed') {
     // Sitting on the ground: recharge, slide to a stop, lift off once thrust beats gravity.
     w.battery = Math.min(1, w.battery + LANDED_CHARGE * (night ? NIGHT_CHARGE_MULT : 1) * (Math.abs(c.x) <= BASE_RADIUS ? BASE_CHARGE_MULT : 1) * dt);
@@ -221,17 +237,33 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
     }
   }
 
+  // Pockets of turbulence (Medium and Hard) shove the craft and cost extra energy.
+  const turb = weatherOn ? turbulenceAt(w, c.x, c.y) : { intensity: 0, vx: 0, vy: 0 };
+
   // Flight burns battery in proportion to climb and tilt effort; the MMRTG trickle barely offsets it.
   const load =
     HOVER_DRAIN + (CLIMB_DRAIN * Math.abs(c.vy)) / CLIMB_SPEED + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
-  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * rain) * w.level.drainMult) * dt));
+  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * wet) * (1 + 0.8 * turb.intensity) * w.level.drainMult) * dt));
   if (isPowerLost(w)) w.message = 'POWER LOST - emergency landing';
 
   // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
-  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * rain) * c.vx + w.wind) * dt;
+  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind) * dt;
   c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
   c.x += c.vx * dt;
   c.y += c.vy * dt;
+
+  // Turbulence shoves the craft directly, whatever the pilot commands.
+  c.x += turb.vx * dt;
+  c.y += turb.vy * dt;
+  w.turbulence = turb.intensity;
+
+  if (spireHit(w)) {
+    w.status = 'crashed';
+    w.message = 'Hit a rock spire';
+    c.vx = 0;
+    c.vy = 0;
+    return;
+  }
 
   resolveGround(w);
 }
@@ -240,6 +272,8 @@ function resolveGround(w: World): void {
   const c = w.craft;
   const ground = w.terrain.groundUnder(c.x);
   if (c.y - SKID_DROP > ground) return;
+  /** Harder difficulties tighten the landing limits. */
+  const tol = w.difficulty.landingTol;
 
   const slope = w.terrain.slopeAt(c.x);
   const slopeAngle = Math.atan(slope);
@@ -252,10 +286,10 @@ function resolveGround(w: World): void {
   const tilt = Math.abs(c.pitch - slopeAngle);
 
   let reason = '';
-  if (impact > MAX_IMPACT_SPEED) reason = `Hard impact (${impact.toFixed(1)} m/s)`;
+  if (impact > MAX_IMPACT_SPEED * tol) reason = `Hard impact (${impact.toFixed(1)} m/s)`;
   else if (Math.abs(slope) > MAX_LAND_SLOPE) reason = 'Slope too steep to land';
-  else if (tilt > MAX_LAND_TILT) reason = 'Landed tilted';
-  else if (slide > MAX_SLIDE_SPEED) reason = `Too fast over the ground (${slide.toFixed(1)} m/s)`;
+  else if (tilt > MAX_LAND_TILT * tol) reason = 'Landed tilted';
+  else if (slide > MAX_SLIDE_SPEED * tol) reason = `Too fast over the ground (${slide.toFixed(1)} m/s)`;
 
   c.y = ground + SKID_DROP;
   if (reason) {

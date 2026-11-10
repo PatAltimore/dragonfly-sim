@@ -1,4 +1,5 @@
 import { INSTRUMENTS } from '../content/instruments';
+import { warningsAhead } from '../sim/obstacles';
 import {
   BASE_RADIUS,
   LOW_BATTERY,
@@ -140,6 +141,17 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
       ctx.fillStyle = z.kind === 'rain' ? 'rgba(110,160,255,0.45)' : 'rgba(230,170,90,0.4)';
       ctx.fillRect(at(a), ry - u * 0.9, at(b) - at(a), u * 1.8);
     }
+    // Obstacles: turbulence cells as grey bands, rock spires as red ticks.
+    for (const cell of w.obstacles.cells) {
+      const cx = cell.x + cell.drift * w.time;
+      const a = Math.max(lo, cx - cell.radius);
+      const b = Math.min(hi, cx + cell.radius);
+      if (b <= a) continue;
+      ctx.fillStyle = 'rgba(170,175,205,0.5)';
+      ctx.fillRect(at(a), ry - u * 0.5, at(b) - at(a), u * 1);
+    }
+    ctx.fillStyle = '#ff6a4a';
+    for (const sp of w.obstacles.spires) ctx.fillRect(at(sp.x) - 1, ry - u * 0.8, 2, u * 1.6);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(at(0) - u * 0.4, ry - u * 0.4, u * 0.8, u * 0.8);
     for (const t of s.targets) {
@@ -300,6 +312,18 @@ function drawHazardHud(ctx: CanvasRenderingContext2D, w: World, cw: number, u: n
   else if (gust.blow > 0.05) rows.push(['#ffd27a', `WIND GUST ${arrow}`]);
   if (rainAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
   if (hazeAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
+  if (w.phase === 'flight') {
+    if (w.turbulence > 0.15) rows.push(['#c9d0ff', 'TURBULENCE: fly out of it!']);
+    const ahead = warningsAhead(w);
+    if (ahead.spire) {
+      const arrows = ahead.spire.dir > 0 ? '►►►' : '◄◄◄';
+      rows.push([ahead.spire.dist < 110 && blink ? '#ff4a2a' : '#ff9a6a', `ROCK SPIRE ${arrows} ${Math.round(ahead.spire.dist)} m: CLIMB`]);
+    }
+    if (ahead.cell && w.turbulence <= 0.15) {
+      const kind = ahead.cell.lift < 0 ? 'DOWNDRAFT' : 'UPDRAFT';
+      rows.push(['#c9d0ff', `${kind} ${ahead.cell.dir > 0 ? '►►►' : '◄◄◄'} ${Math.round(ahead.cell.dist)} m: CHANGE ALTITUDE`]);
+    }
+  }
   ctx.textAlign = 'center';
   ctx.font = `bold ${u * 1.1}px monospace`;
   rows.forEach(([color, text], i) => {

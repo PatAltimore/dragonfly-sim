@@ -107,7 +107,7 @@ export class GameAudio {
     this.rotorB.frequency.setTargetAtTime(base * 1.51, now, 0.05);
     this.rotorGain.gain.setTargetAtTime(alive ? 0.01 + c.throttle * 0.07 : 0, now, 0.08);
     const chute = w.phase === 'chute' ? 0.1 : 0;
-    this.windGain.gain.setTargetAtTime(alive ? chute + gust.blow * 0.25 + Math.min(1, Math.abs(c.vx) / 70) * 0.06 : 0, now, 0.15);
+    this.windGain.gain.setTargetAtTime(alive ? chute + gust.blow * 0.25 + w.turbulence * 0.3 + Math.min(1, Math.abs(c.vx) / 70) * 0.06 : 0, now, 0.15);
     this.rainGain.gain.setTargetAtTime(alive ? rain * 0.14 : 0, now, 0.3);
 
     // One-shot effects from state transitions.

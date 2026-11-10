@@ -1,4 +1,5 @@
 import type { GameAudio } from './audio/audio';
+import { DIFFICULTY_ORDER, type Difficulty } from './content/difficulty';
 import { LEVELS } from './content/levels';
 import type { Keyboard } from './input/keyboard';
 import { mergeInput, type TouchControls } from './input/touch';
@@ -25,6 +26,7 @@ export class Game {
   private world: World;
   private backdrop: World;
   private backdropIndex = 0;
+  private backdropDifficulty: Difficulty = 'easy';
   private result: RunResult | null = null;
   private newBest = false;
   private endTimer = 0;
@@ -42,7 +44,8 @@ export class Game {
     private view3d: boolean,
     private onToggleView: () => void,
   ) {
-    this.world = createWorld(LEVELS[0], { skipIntro: true });
+    this.world = createWorld(LEVELS[0], { skipIntro: true, difficulty: progress.difficulty });
+    this.backdropDifficulty = progress.difficulty;
     this.backdrop = this.world;
     this.renderer.resetCamera(this.backdrop);
     this.touch.onPause = () => {
@@ -59,9 +62,10 @@ export class Game {
 
   /** Show an idle view of a sortie's terrain and time of day behind the menus. */
   private showBackdrop(index: number): World {
-    if (this.backdropIndex !== index) {
-      this.backdrop = createWorld(LEVELS[index], { skipIntro: true });
+    if (this.backdropIndex !== index || this.backdropDifficulty !== this.progress.difficulty) {
+      this.backdrop = createWorld(LEVELS[index], { skipIntro: true, difficulty: this.progress.difficulty });
       this.backdropIndex = index;
+      this.backdropDifficulty = this.progress.difficulty;
       this.renderer.resetCamera(this.backdrop);
     }
     return this.backdrop;
@@ -69,7 +73,7 @@ export class Game {
 
   private startPlay(skipIntro: boolean): void {
     this.skipIntro = skipIntro;
-    this.world = createWorld(LEVELS[this.index], { skipIntro });
+    this.world = createWorld(LEVELS[this.index], { skipIntro, difficulty: this.progress.difficulty });
     this.renderer.resetCamera(this.world);
     this.audio.reset();
     this.acc = 0;
@@ -101,6 +105,15 @@ export class Game {
     this.go('briefing');
   }
 
+  /** Choose a difficulty by index (Easy, Medium, Hard). Remembered between visits. */
+  private setDifficulty(i: number): void {
+    const next = DIFFICULTY_ORDER[Math.min(DIFFICULTY_ORDER.length - 1, Math.max(0, i))];
+    if (next === this.progress.difficulty) return;
+    this.progress.difficulty = next;
+    saveProgress(this.progress);
+    this.audio.sfx('select');
+  }
+
   private toggleSound(): void {
     this.progress.muted = this.audio.toggleMute();
     saveProgress(this.progress);
@@ -130,6 +143,7 @@ export class Game {
     if (id === 'library') return this.openLibrary(this.screen);
     switch (this.screen) {
       case 'menu': {
+        if (id.startsWith('diff:')) return this.setDifficulty(Number(id.slice(5)));
         const i = Number(id.split(':')[1]);
         if (Number.isNaN(i)) return;
         if (i === this.cursor && isUnlocked(this.progress, i)) this.openBriefing(i);
@@ -212,6 +226,9 @@ export class Game {
       this.cursor++;
       this.audio.sfx('select');
     }
+    const diff = DIFFICULTY_ORDER.indexOf(this.progress.difficulty);
+    if (this.pressed('ArrowLeft', 'KeyA')) this.setDifficulty(diff - 1);
+    if (this.pressed('ArrowRight', 'KeyD')) this.setDifficulty(diff + 1);
     if (this.keyboard.consumePress('KeyL')) return this.openLibrary('menu');
     if (this.confirm() && isUnlocked(this.progress, this.cursor)) return this.openBriefing(this.cursor);
     this.renderer.draw(this.showBackdrop(this.cursor), false);
@@ -226,7 +243,7 @@ export class Game {
     }
     if (this.pressed('Escape', 'Backspace')) return this.toMenu();
     this.renderer.draw(this.showBackdrop(this.index), false);
-    this.arm(drawBriefing(this.renderer.surface(), LEVELS[this.index], this.index));
+    this.arm(drawBriefing(this.renderer.surface(), this.showBackdrop(this.index), this.index));
     this.audio.update(null, false);
   }
 
@@ -247,7 +264,7 @@ export class Game {
       this.endTimer += dt;
       if (this.endTimer >= (w.science.complete ? COMPLETE_DELAY : CRASH_DELAY)) {
         this.result = evaluate(w);
-        this.newBest = recordResult(this.progress, this.index, this.result);
+        this.newBest = recordResult(this.progress, this.index, w.difficulty.id, this.result);
         return this.go('debrief');
       }
     }
@@ -283,7 +300,7 @@ export class Game {
     if (this.confirm()) return this.debriefPrimary();
     this.renderer.draw(this.world, false);
     const hasNext = r.completed && this.index + 1 < LEVELS.length;
-    this.arm(drawDebrief(this.renderer.surface(), r, LEVELS[this.index], this.index, this.newBest, hasNext));
+    this.arm(drawDebrief(this.renderer.surface(), r, this.world.level, this.index, this.newBest, hasNext));
     this.audio.update(null, false);
   }
 }

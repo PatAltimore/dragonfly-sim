@@ -76,6 +76,14 @@ export const LIBRARY: Entry[] = [
   },
   {
     section: 'mission',
+    title: 'Scouting the way',
+    body: [
+      'Dragonfly does not fly blind. By day its sensors and cameras scout new targets, and the craft waits until mission controllers approve new landing destinations. Safe, scientifically interesting places are chosen from the air before any hop.',
+      'Game note: the rock spires and turbulence cells on Medium and Hard are arcade inventions. They stand in for the terrain and weather hazards that mission planners work to avoid, and they make you change altitude the way a careful pilot would.',
+    ],
+  },
+  {
+    section: 'mission',
     title: 'Soar with Dragonfly',
     body: [
       'NASA invites the public to sign up to have a name placed on a chip aboard the spacecraft and to receive a personalized boarding pass.',
@@ -209,7 +217,7 @@ export const LIBRARY: Entry[] = [
     accent: '#ff7a3a',
     body: [
       'The Dragonfly Mass Spectrometer weighs molecules to work out what a sample is made of. It looks especially for chemicals relevant to biology, in drilled surface samples and in the atmosphere.',
-      'In the game: orange DraMS targets take the longest, 4 seconds of drilling, and are worth the most points.',
+      'In the game: orange DraMS targets take the longest (4 seconds of drilling on Easy, more on harder settings) and are worth the most points.',
     ],
   },
   {
@@ -218,7 +226,7 @@ export const LIBRARY: Entry[] = [
     accent: '#5fd0ff',
     body: [
       'The Gamma-Ray and Neutron Spectrometer fires pulses of neutrons into the ground. The gamma rays and neutrons that come back reveal the composition of the ground beneath the lander.',
-      'Different elements give off gamma rays at characteristic energies, which is how the instrument tells them apart. In the game: cyan DraGNS scans take 2 seconds.',
+      'Different elements give off gamma rays at characteristic energies, which is how the instrument tells them apart. In the game: cyan DraGNS scans take 2 seconds on Easy.',
     ],
   },
   {
@@ -236,7 +244,7 @@ export const LIBRARY: Entry[] = [
     accent: '#c79bff',
     body: [
       'A suite of cameras: a microscopic imager for close-ups of samples and a panoramic imager for the landscape. LED illuminators help with microscopic imaging at night.',
-      'The cameras also help scout where to land next. In the game: violet DragonCam targets need a slow hover, 1 second, inside the dashed box.',
+      'The cameras also help scout where to land next. In the game: violet DragonCam targets need a slow hover (1 second on Easy) inside the dashed box.',
     ],
   },
 

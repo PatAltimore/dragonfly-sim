@@ -28,6 +28,7 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | Restart sortie | R | Pause menu |
 | Skip the intro descent | X | |
 | Sound on / off | M | Sound button |
+| Change difficulty (on the menu) | Left / Right | Easy / Medium / Hard buttons |
 | Switch 2D / 3D view | V | VIEW button on the menu |
 | Open the Mission File | L | MISSION FILE button (menu and pause) |
 
@@ -67,9 +68,23 @@ The simulation never touches the DOM or the canvas, so renderers are interchange
 
 3D is the default. Switch with the VIEW button on the menu, the `V` key, or `?view=2d` / `?view=3d` in the address. The choice is remembered. The gameplay is the same 2D simulation (the craft still flies in one plane); the terrain, sky, lighting, weather and craft are real 3D, seen from a slightly angled side camera.
 
+## Difficulty
+
+Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars and best scores are kept separately for each, and a sortie opens once the one before it is cleared on any difficulty.
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Rock spires (solid, 22 to 80 m tall) | none | about 2.5 per km | about 4.5 per km |
+| Turbulence cells (up and downdrafts) | none | about 0.8 per km | about 1.6 per km, drifting |
+| Weather, battery drain, terrain | baseline | tougher | much tougher |
+| Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
+| Score multiplier | x1 | x1.25 | x1.5 |
+
+Spires and turbulence are what make you change altitude: you must climb over spires, and downdrafts push you toward the ground. Warnings appear on the HUD and the radar strip marks them. They are placed deterministically, never on the base or a target, and there is no ceiling, so there is always a way over. The numbers live in `src/content/difficulty.ts`.
+
 ## The Mission File (education and science)
 
-The menu and pause screen open the **Mission File**: 27 short pages on the Dragonfly mission and Titan, in six sections:
+The menu and pause screen open the **Mission File**: 28 short pages on the Dragonfly mission and Titan, in six sections:
 
 - **Mission:** the big science question, timeline, team, the 105-minute autonomous landing, a day on Titan, and the public "Soar with Dragonfly" program.
 - **Titan:** size and gravity, the orange haze, methane weather, hydrocarbon seas, dunes of organic material, tholins, the possible hidden ocean, and the Huygens landing.

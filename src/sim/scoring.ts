@@ -17,6 +17,10 @@ export interface RunResult {
   battery: number;
   /** Cargo value destroyed in a crash. */
   lost: number;
+  /** Difficulty label, its score multiplier, and the points that multiplier added. */
+  difficulty: string;
+  difficultyMult: number;
+  difficultyBonus: number;
 }
 
 /** Bonus points needed on top of completing the sortie for the second and third star. */
@@ -36,6 +40,9 @@ export function evaluate(w: World): RunResult {
   const batteryBonus = completed ? Math.round(battery * 200) : 0;
   const bonus = timeBonus + batteryBonus;
   const stars = !completed ? 0 : bonus >= STAR3_BONUS ? 3 : bonus >= STAR2_BONUS ? 2 : 1;
+  const subtotal = s.score + bonus;
+  const mult = w.difficulty.scoreMult;
+  const total = completed ? Math.round(subtotal * mult) : subtotal;
   return {
     completed,
     crashed,
@@ -43,10 +50,13 @@ export function evaluate(w: World): RunResult {
     science: s.score,
     timeBonus,
     batteryBonus,
-    total: s.score + bonus,
+    total,
     stars,
     time,
     battery,
     lost: s.lostValue,
+    difficulty: w.difficulty.label,
+    difficultyMult: mult,
+    difficultyBonus: total - subtotal,
   };
 }
