@@ -38,6 +38,7 @@ import {
 import { stepDescent } from './descent';
 import { isNight } from './daynight';
 import { gustAt, rainAt } from './hazards';
+import type { Level } from '../content/levels';
 import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
 
@@ -86,6 +87,7 @@ export interface LandingResult {
 
 export interface World {
   terrain: Terrain;
+  level: Level;
   phase: Phase;
   /** Rotor spin-up progress in [0, 1] during the 'spinup' phase. */
   spin: number;
@@ -106,15 +108,19 @@ export interface World {
 
 export const NO_INPUT: Input = { tilt: 0, climb: 0 };
 
-export function createWorld(seed = 1, opts: { intro?: boolean } = {}): World {
-  const intro = opts.intro ?? true;
-  const terrain = new Terrain(seed);
+/** Seconds on the Titan day clock: sim time plus the level's starting offset. */
+export const clockOf = (w: World): number => w.time + w.level.clockOffset;
+
+export function createWorld(level: Level, opts: { skipIntro?: boolean } = {}): World {
+  const intro = level.intro && !opts.skipIntro;
+  const terrain = new Terrain(level.seed, 25, level.ridgeAmp);
   const base = {
     terrain,
+    level,
     spin: 1,
     intro,
     landing: null,
-    science: createScience(terrain, intro ? 0 : 20),
+    science: createScience(terrain, level.targets, intro ? 0 : 20),
     time: 0,
     battery: 1,
     wind: 0,
@@ -170,8 +176,8 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
 
   // Weather bites once the pilot is on the sortie: gusts push, rain thickens the air.
   const weatherOn = !w.intro || w.landing !== null;
-  const rain = weatherOn ? rainAt(c.x, w.time) : 0;
-  w.wind = weatherOn ? gustAt(w.time).accel : 0;
+  const rain = weatherOn ? rainAt(w.level.zones, c.x, w.time) : 0;
+  w.wind = weatherOn ? gustAt(w.level.gust, w.time).accel : 0;
 
   // Energy gates control: no power means an automatic, level descent; a flat battery can't lift off.
   let input = pilot;
@@ -193,7 +199,7 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
   c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
 
-  const night = isNight(w.time);
+  const night = isNight(clockOf(w));
   if (w.status === 'landed') {
     // Sitting on the ground: recharge, slide to a stop, lift off once thrust beats gravity.
     w.battery = Math.min(1, w.battery + LANDED_CHARGE * (night ? NIGHT_CHARGE_MULT : 1) * (Math.abs(c.x) <= BASE_RADIUS ? BASE_CHARGE_MULT : 1) * dt);
@@ -215,7 +221,7 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Flight burns battery in proportion to climb and tilt effort; the MMRTG trickle barely offsets it.
   const load =
     HOVER_DRAIN + (CLIMB_DRAIN * Math.abs(c.vy)) / CLIMB_SPEED + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
-  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * rain)) * dt));
+  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * rain) * w.level.drainMult) * dt));
   if (isPowerLost(w)) w.message = 'POWER LOST - emergency landing';
 
   // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.

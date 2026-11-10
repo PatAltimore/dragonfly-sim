@@ -28,13 +28,15 @@ export class Terrain {
     readonly seed: number,
     /** Half-width of the flat base pad around x = 0. */
     readonly padRadius = 25,
+    /** Multiplier on the far-ridge steepness. */
+    readonly ridgeAmp = 1,
   ) {}
 
   heightAt(x: number): number {
     const s = this.seed;
     const h = 7 * noise(x / 90, s) + 3 * noise(x / 35 + 100, s + 1) + 0.8 * noise(x / 12 + 200, s + 2);
     // Steeper ridges farther from the base make for tricky landing spots.
-    const ridges = 4 * noise(x / 18 + 300, s + 3) * smoothstep(150, 900, Math.abs(x));
+    const ridges = 4 * this.ridgeAmp * noise(x / 18 + 300, s + 3) * smoothstep(150, 900, Math.abs(x));
     const flat = smoothstep(this.padRadius, this.padRadius + 40, Math.abs(x));
     return (h + ridges) * flat;
   }

@@ -1,5 +1,5 @@
 import { INSTRUMENTS, type InstrumentId } from '../content/instruments';
-import { SORTIE_TARGETS, snapToFlat } from '../content/sortie';
+import { snapToFlat, type TargetSpec } from '../content/sortie';
 import {
   BASE_RADIUS,
   PHOTO_MAX_AGL,
@@ -45,13 +45,15 @@ export interface Science {
   hintUntil: number;
   complete: boolean;
   completeTime: number;
+  /** Battery level at the moment the sortie finished. */
+  completeBattery: number;
   /** Value of the cargo destroyed in a crash. */
   lostValue: number;
 }
 
-export function createScience(terrain: Terrain, hintUntil: number): Science {
+export function createScience(terrain: Terrain, specs: TargetSpec[], hintUntil: number): Science {
   return {
-    targets: SORTIE_TARGETS.map((spec, id) => ({
+    targets: specs.map((spec, id) => ({
       id,
       kind: spec.kind,
       x: INSTRUMENTS[spec.kind].landing ? snapToFlat(terrain, spec.x) : spec.x,
@@ -67,6 +69,7 @@ export function createScience(terrain: Terrain, hintUntil: number): Science {
     hintUntil,
     complete: false,
     completeTime: 0,
+    completeBattery: 0,
     lostValue: 0,
   };
 }
@@ -136,5 +139,6 @@ export function stepScience(w: World, dt: number): void {
   if (s.cargo.length === 0 && s.targets.every((t) => t.collected)) {
     s.complete = true;
     s.completeTime = w.time;
+    s.completeBattery = w.battery;
   }
 }

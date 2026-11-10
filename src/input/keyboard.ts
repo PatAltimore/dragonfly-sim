@@ -4,7 +4,7 @@ const LEFT = ['ArrowLeft', 'KeyA'];
 const RIGHT = ['ArrowRight', 'KeyD'];
 const UP = ['ArrowUp', 'KeyW', 'Space'];
 const DOWN = ['ArrowDown', 'KeyS'];
-const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR', 'KeyX'];
+const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR', 'KeyX', 'KeyP', 'KeyQ', 'KeyM', 'Enter', 'Escape', 'Backspace'];
 
 export class Keyboard {
   private down = new Set<string>();
@@ -29,6 +29,11 @@ export class Keyboard {
       tilt: (this.any(RIGHT) ? 1 : 0) - (this.any(LEFT) ? 1 : 0),
       climb: (this.any(UP) ? 1 : 0) - (this.any(DOWN) ? 1 : 0),
     };
+  }
+
+  /** Forget presses made so far, e.g. when the screen changes. */
+  clearPresses(): void {
+    this.pressed.clear();
   }
 
   /** True once per keypress of the given key code (e.g. 'KeyR'). */

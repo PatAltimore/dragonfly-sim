@@ -7,16 +7,6 @@ export interface TargetSpec {
   x: number;
 }
 
-/** The first sortie, in no particular order: the pilot plans the route. */
-export const SORTIE_TARGETS: TargetSpec[] = [
-  { kind: 'dragoncam', x: -380 },
-  { kind: 'dragns', x: 320 },
-  { kind: 'dragms', x: 700 },
-  { kind: 'dragoncam', x: 1000 },
-  { kind: 'dragms', x: -850 },
-  { kind: 'dragns', x: 1350 },
-];
-
 /** Nearest x to the wanted one where the ground is flat enough to land on comfortably. */
 export function snapToFlat(terrain: Terrain, x: number): number {
   const flat = (px: number) => Math.abs(terrain.slopeAt(px - 5)) < 0.12 && Math.abs(terrain.slopeAt(px + 5)) < 0.12 && Math.abs(terrain.slopeAt(px)) < 0.12;

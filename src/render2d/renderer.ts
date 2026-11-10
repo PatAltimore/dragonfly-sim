@@ -1,5 +1,4 @@
 import { INSTRUMENTS } from '../content/instruments';
-import { ZONES } from '../content/hazards';
 import {
   BASE_RADIUS,
   LOW_BATTERY,
@@ -17,7 +16,7 @@ import { dayNumber, daylight, phaseLabel } from '../sim/daynight';
 import { hintFor } from '../ui/hints';
 import { gustAt, hazeAt, rainAt, zoneCenter } from '../sim/hazards';
 import { cargoValue } from '../sim/science';
-import { altitudeAGL, isPowerLost, type World } from '../sim/world';
+import { altitudeAGL, clockOf, isPowerLost, type World } from '../sim/world';
 
 /** Weather only applies once the pilot is on the sortie, not during the intro descent. */
 const weatherOn = (w: World): boolean => !w.intro || w.landing !== null;
@@ -74,7 +73,13 @@ export class Renderer {
     return VIEW_HEIGHT_M + Math.min(Math.max(altitudeAGL(w), 0), VIEW_ZOOM_OUT_MAX_AGL) * VIEW_ZOOM_OUT_PER_M;
   }
 
-  draw(w: World): void {
+  /** The canvas surface, for screens that paint over the scene. Valid after draw(). */
+  surface(): { ctx: CanvasRenderingContext2D; cw: number; ch: number } {
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return { ctx: this.ctx, cw: this.canvas.width, ch: this.canvas.height };
+  }
+
+  draw(w: World, hud = true): void {
     const { canvas, ctx } = this;
     const dpr = window.devicePixelRatio || 1;
     const cw = Math.floor(canvas.clientWidth * dpr);
@@ -113,7 +118,7 @@ export class Renderer {
     this.drawCraft(w, scale, sx, sy);
     this.drawWeatherFx(w, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
-    this.drawHud(w, cw, ch);
+    if (hud) this.drawHud(w, cw, ch);
   }
 
   private drawSky(cw: number, ch: number): void {
@@ -277,7 +282,7 @@ export class Renderer {
     const step = 6;
     for (let px = 0; px < cw; px += step) {
       const wx = x0 + (px + step / 2) / scale;
-      const haze = hazeAt(wx, w.time);
+      const haze = hazeAt(w.level.zones, wx, w.time);
       if (haze < 0.02) continue;
       const gy = w.terrain.heightAt(wx);
       for (const [height, alpha] of [[90, 0.3], [45, 0.3], [15, 0.25]]) {
@@ -292,7 +297,7 @@ export class Renderer {
   private drawWeatherFx(w: World, cw: number, ch: number): void {
     if (!weatherOn(w)) return;
     const { ctx } = this;
-    const rain = rainAt(this.camX, w.time);
+    const rain = rainAt(w.level.zones, this.camX, w.time);
     if (rain > 0.02) {
       ctx.fillStyle = `rgba(40,45,60,${(rain * 0.3).toFixed(3)})`;
       ctx.fillRect(0, 0, cw, ch);
@@ -312,7 +317,7 @@ export class Renderer {
       ctx.stroke();
     }
 
-    const gust = gustAt(w.time);
+    const gust = gustAt(w.level.gust, w.time);
     if (gust.blow > 0.05) {
       ctx.strokeStyle = `rgba(255,236,200,${(gust.blow * 0.35).toFixed(3)})`;
       ctx.lineWidth = Math.max(1, ch / 450);
@@ -336,12 +341,12 @@ export class Renderer {
     const { ctx } = this;
     const blink = Math.floor(w.time * 4) % 2 === 0;
     const rows: [string, string][] = [];
-    const gust = gustAt(w.time);
+    const gust = gustAt(w.level.gust, w.time);
     const arrow = gust.dir > 0 ? '►►►' : '◄◄◄';
     if (gust.warn > 0) rows.push([blink ? '#ffd27a' : '#ff9a4a', `WIND GUST INCOMING ${arrow}`]);
     else if (gust.blow > 0.05) rows.push(['#ffd27a', `WIND GUST ${arrow}`]);
-    if (rainAt(w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
-    if (hazeAt(w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
+    if (rainAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
+    if (hazeAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
     ctx.textAlign = 'center';
     ctx.font = `bold ${u * 1.1}px monospace`;
     rows.forEach(([color, text], i) => {
@@ -532,7 +537,7 @@ export class Renderer {
     sx: (x: number) => number,
     sy: (y: number) => number,
   ): void {
-    const dark = 1 - daylight(w.time);
+    const dark = 1 - daylight(clockOf(w));
     if (dark < 0.02) return;
     const { ctx } = this;
     ctx.fillStyle = `rgba(6,6,28,${(dark * 0.8).toFixed(3)})`;
@@ -569,7 +574,7 @@ export class Renderer {
       ['V/S', `${c.vy.toFixed(1)} m/s`],
       ['H/S', `${c.vx.toFixed(1)} m/s`],
       ['DIST', `${c.x.toFixed(0)} m`],
-      ['SOL', `${dayNumber(w.time)} ${phaseLabel(w.time)}`],
+      ['SOL', `${dayNumber(clockOf(w))} ${phaseLabel(clockOf(w))}`],
       ['BATT', `${Math.round(w.battery * 100)}%`],
       ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
       ['SCORE', `${w.science.score}`],
@@ -630,7 +635,7 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.font = `${u * 0.9}px monospace`;
     ctx.fillStyle = 'rgba(255,226,176,0.7)';
-    ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro', cw / 2, ch - u * 0.8);
+    ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro    Esc: pause', cw / 2, ch - u * 0.8);
   }
 
   /** Target pointer, radar strip, work progress, event toasts and the sortie-complete panel. */
@@ -672,7 +677,7 @@ export class Renderer {
       ctx.fillRect(rx - u * 0.6, ry - u * 1.1, rw + u * 1.2, u * 2.2);
       ctx.fillStyle = 'rgba(255,226,176,0.35)';
       ctx.fillRect(rx, ry - 1, rw, 2);
-      for (const z of ZONES) {
+      for (const z of w.level.zones) {
         const a = Math.max(lo, zoneCenter(z, w.time) - z.halfWidth);
         const b = Math.min(hi, zoneCenter(z, w.time) + z.halfWidth);
         if (b <= a) continue;
