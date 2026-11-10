@@ -37,7 +37,10 @@ export function stepDescent(w: World, pilot: Input, dt: number): void {
   if (w.phase === 'chute') {
     c.vx += (CHUTE_WIND + tilt * CHUTE_STEER_SPEED - c.vx) * k;
     c.vy += (-CHUTE_SPEED - c.vy) * k;
-    c.pitch = 0.07 * Math.sin(w.time * 1.7) - tilt * 0.12;
+    // The canopy leads and the craft hangs from it: steering right swings the canopy right and
+    // leans the craft the same way it leans in powered flight. Eased so it swings rather than snaps.
+    const swing = 0.07 * Math.sin(w.time * 1.7) + tilt * 0.2;
+    c.pitch += (swing - c.pitch) * (1 - Math.exp(-5 * dt));
     if (pilot.climb > 0 || agl <= AUTO_RELEASE_AGL) {
       w.phase = 'spinup';
       w.spin = 0;

@@ -43,6 +43,19 @@ export interface DifficultySpec {
   cellRadius: [number, number];
   cellDrift: number;
   turbulence: number;
+
+  /** Squall fronts per km: fast storm bands sweeping horizontally through the high sky. Altitude (m) and speed (m/s) ranges. */
+  squallsPerKm: number;
+  squallAlt: [number, number];
+  squallSpeed: [number, number];
+  /** Cryo-vents: extra ones per km, the chance a landing target has one right on it, the eruption period (s) and plume height (m). */
+  ventsPerKm: number;
+  ventTargetChance: number;
+  ventPeriod: [number, number];
+  plumeHeight: [number, number];
+  /** How many rotors can be lost before the craft goes down, and seconds of repair per rotor when landed at the base. */
+  rotorsFatal: number;
+  rotorRepair: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
@@ -69,6 +82,15 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     cellRadius: [0, 0],
     cellDrift: 0,
     turbulence: 0,
+    squallsPerKm: 0,
+    squallAlt: [0, 0],
+    squallSpeed: [0, 0],
+    ventsPerKm: 0,
+    ventTargetChance: 0,
+    ventPeriod: [10, 10],
+    plumeHeight: [0, 0],
+    rotorsFatal: 99,
+    rotorRepair: 6,
   },
   medium: {
     id: 'medium',
@@ -93,6 +115,15 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     cellRadius: [26, 36],
     cellDrift: 0,
     turbulence: 30,
+    squallsPerKm: 0.8,
+    squallAlt: [70, 170],
+    squallSpeed: [30, 45],
+    ventsPerKm: 0.6,
+    ventTargetChance: 0.4,
+    ventPeriod: [11, 15],
+    plumeHeight: [40, 55],
+    rotorsFatal: 4,
+    rotorRepair: 6,
   },
   hard: {
     id: 'hard',
@@ -117,6 +148,15 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     cellRadius: [28, 42],
     cellDrift: 4,
     turbulence: 42,
+    squallsPerKm: 1.6,
+    squallAlt: [55, 200],
+    squallSpeed: [45, 70],
+    ventsPerKm: 1.2,
+    ventTargetChance: 0.75,
+    ventPeriod: [8, 11],
+    plumeHeight: [55, 75],
+    rotorsFatal: 3,
+    rotorRepair: 9,
   },
 };
 

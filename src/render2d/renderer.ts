@@ -11,7 +11,7 @@ import {
 import { daylight } from '../sim/daynight';
 import { drawHud } from '../ui/hud';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
-import { cellCenter } from '../sim/obstacles';
+import { cellCenter, squallState, ventState } from '../sim/obstacles';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
 
 /** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
@@ -114,10 +114,12 @@ export class Renderer {
     this.drawBase(w, scale, sx, sy);
     this.drawTargets(w, scale, sx, sy);
     this.drawSpires(w, cw, scale, sx, sy);
+    this.drawVents(w, cw, scale, sx, sy);
     this.updateDust(w, dt);
     this.drawDust(scale, sx, sy);
     this.drawFog(w, cw, ch, scale, sy);
     this.drawCells(w, cw, scale, sx, sy);
+    this.drawSqualls(w, cw, scale, sx, sy);
     this.drawCanopy(w, dt, scale, sx, sy);
     this.drawCraft(w, scale, sx, sy);
     this.drawWeatherFx(w, cw, ch);
@@ -190,6 +192,91 @@ export class Renderer {
       ctx.textBaseline = 'middle';
       ctx.fillText(down ? '▼' : '▲', px, py);
       ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  /** Cryo-vents: a dark mound with a glowing crack. It flashes before erupting a plume of icy slush. */
+  private drawVents(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    for (const v of w.obstacles.vents) {
+      if (Math.abs(v.x - this.camX) > cw / 2 / scale + 20) continue;
+      const px = sx(v.x);
+      const py = sy(w.terrain.heightAt(v.x));
+      const vs = ventState(w, v);
+      ctx.fillStyle = '#3a2a1e';
+      ctx.beginPath();
+      ctx.moveTo(px - 7 * scale, py + 0.5 * scale);
+      ctx.lineTo(px - 2.5 * scale, py - 2.2 * scale);
+      ctx.lineTo(px + 2.5 * scale, py - 2.2 * scale);
+      ctx.lineTo(px + 7 * scale, py + 0.5 * scale);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = vs.state === 'erupt' ? '#ffffff' : vs.state === 'warn' ? (Math.floor(w.time * 8) % 2 ? '#ff5a2a' : '#ffb347') : '#7a3a1a';
+      ctx.fillRect(px - 2 * scale, py - 2.6 * scale, 4 * scale, 0.7 * scale);
+      if (vs.state === 'erupt') {
+        const h = vs.height * scale;
+        const g = ctx.createLinearGradient(0, py, 0, py - h);
+        g.addColorStop(0, 'rgba(235,245,255,0.85)');
+        g.addColorStop(1, 'rgba(200,225,255,0.1)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(px - v.halfWidth * 0.5 * scale, py - 2.2 * scale);
+        ctx.lineTo(px - v.halfWidth * scale, py - h);
+        ctx.lineTo(px + v.halfWidth * scale, py - h);
+        ctx.lineTo(px + v.halfWidth * 0.5 * scale, py - 2.2 * scale);
+        ctx.closePath();
+        ctx.fill();
+      } else if (vs.state === 'warn') {
+        // The column that is about to be filled, outlined so you can see what to stay out of.
+        ctx.strokeStyle = 'rgba(255,120,60,0.65)';
+        ctx.setLineDash([scale * 1.5, scale]);
+        ctx.lineWidth = Math.max(1, scale * 0.25);
+        ctx.strokeRect(px - v.halfWidth * scale, py - v.plume * scale, 2 * v.halfWidth * scale, v.plume * scale);
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
+  /** Squall fronts: dark storm bands with a glowing leading edge and streaks trailing behind. */
+  private drawSqualls(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    for (const s of w.obstacles.squalls) {
+      const st = squallState(w, s);
+      if (Math.abs(st.x - this.camX) > cw / 2 / scale + s.length + 120) continue;
+      const px = sx(st.x);
+      const py = sy(st.y);
+      const rx = (s.length / 2) * scale;
+      const ry = (s.thick / 2) * scale;
+      ctx.strokeStyle = 'rgba(210,215,240,0.4)';
+      ctx.lineWidth = Math.max(1, scale * 0.25);
+      for (let k = 0; k < 5; k++) {
+        const yy = py + (k - 2) * ry * 0.45;
+        const len = rx * (1.2 + 0.5 * ((k * 7) % 3));
+        ctx.beginPath();
+        ctx.moveTo(px - st.dir * rx * 0.6, yy);
+        ctx.lineTo(px - st.dir * (rx * 0.6 + len), yy);
+        ctx.stroke();
+      }
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(1, ry / rx);
+      const g = ctx.createRadialGradient(0, 0, rx * 0.15, 0, 0, rx);
+      g.addColorStop(0, 'rgba(30,28,48,0.88)');
+      g.addColorStop(0.7, 'rgba(60,56,90,0.55)');
+      g.addColorStop(1, 'rgba(70,70,110,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,170,90,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(px + st.dir * rx * 0.8, py, rx * 0.18, ry * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (Math.sin(w.time * 6 + s.phase * 5) > 0.93) {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(px - rx * 0.2, py - ry * 0.15, rx * 0.4, ry * 0.3);
+      }
     }
   }
 
@@ -270,7 +357,7 @@ export class Renderer {
     }
     this.lastPhase = w.phase;
     if (w.phase === 'chute') {
-      this.drawCanopyShape(c.x + c.pitch * 12, c.y + 9, scale, sx, sy, c);
+      this.drawCanopyShape(c.x + c.pitch * 24, c.y + 9, scale, sx, sy, c);
     } else if (this.canopy) {
       const k = this.canopy;
       k.age += dt;
@@ -532,6 +619,8 @@ export class Renderer {
     const { ctx } = this;
     const c = w.craft;
     ctx.save();
+    // After a strike the craft flickers for a moment.
+    if (w.invuln > 0 && Math.floor(w.time * 14) % 2 === 0) ctx.globalAlpha = 0.35;
     ctx.translate(sx(c.x), sy(c.y));
     ctx.rotate(c.pitch);
     ctx.scale(scale, scale);
@@ -558,7 +647,9 @@ export class Renderer {
     ctx.fillRect(0.5, -0.3, 0.6, 0.35); // camera window
     ctx.fillStyle = '#c0392b';
     ctx.fillRect(-1.3, -0.1, 0.5, 0.25); // MMRTG fins marker
-    // Rotor arms and stacked rotor discs
+    // Rotor arms and stacked rotor discs. Each line stands for two rotors; lost rotors disappear.
+    const aliveLines = Math.ceil(w.rotors / 2);
+    let lineIdx = 0;
     for (const rx of [-1.9, 1.9]) {
       ctx.strokeStyle = '#8a8a8a';
       ctx.lineWidth = 0.14;
@@ -571,6 +662,7 @@ export class Renderer {
       ctx.strokeStyle = `rgba(230,230,230,${alpha.toFixed(2)})`;
       ctx.lineWidth = 0.16;
       for (const dy of [-0.85, -1.05]) {
+        if (lineIdx++ >= aliveLines) continue;
         ctx.beginPath();
         ctx.moveTo(rx - len, dy);
         ctx.lineTo(rx + len, dy);

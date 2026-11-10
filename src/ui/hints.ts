@@ -19,6 +19,10 @@ export function hintFor(w: World): string | null {
   if (hazards && w.phase === 'flight' && !w.science.complete && until > 0 && w.time >= until && w.time < until + 12) {
     return 'Rock spires are solid: climb over them. Turbulence cells shove you: go around or over.';
   }
+  const threats = w.obstacles.squalls.length + w.obstacles.vents.length > 0;
+  if (threats && w.phase === 'flight' && !w.science.complete && until > 0 && w.time >= until + 12 && w.time < until + 24) {
+    return 'Squalls patrol the high sky, vents erupt on a timer. A strike costs a rotor: repair at the base.';
+  }
   if (w.phase === 'flight' && !w.science.complete && w.science.hintUntil > w.time) {
     return 'Land on orange/cyan rings to drill and scan, hover in violet boxes to image. Land at the LZ to upload.';
   }

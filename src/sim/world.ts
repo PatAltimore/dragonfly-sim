@@ -30,6 +30,8 @@ import {
   SKID_DROP,
   START_AGL,
   START_X,
+  STRIKE_INVULN,
+  TOTAL_ROTORS,
   TILT_DRAIN,
   THROTTLE_RESPONSE,
   TILT_RESPONSE,
@@ -39,8 +41,9 @@ import { stepDescent } from './descent';
 import { isNight } from './daynight';
 import { gustAt, rainAt } from './hazards';
 import { applyDifficulty, DIFFICULTIES, type Difficulty, type DifficultySpec } from '../content/difficulty';
+import { INSTRUMENTS } from '../content/instruments';
 import type { Level } from '../content/levels';
-import { generateObstacles, spireHit, turbulenceAt, type Obstacles } from './obstacles';
+import { generateObstacles, spireHit, strikeCheck, turbulenceAt, type Obstacles } from './obstacles';
 import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
 
@@ -111,6 +114,13 @@ export interface World {
   wind: number;
   /** How hard turbulence is buffeting the craft right now, 0 to 1. */
   turbulence: number;
+  /** Working rotors out of eight. Strikes knock them out; repairs happen landed at the base. */
+  rotors: number;
+  /** Seconds of grace left after a strike, and seconds spent repairing at the base so far. */
+  invuln: number;
+  repair: number;
+  /** Sim time of the last strike, for flashing the HUD. */
+  lastStrike: number;
 }
 
 export const NO_INPUT: Input = { tilt: 0, climb: 0 };
@@ -131,7 +141,11 @@ export function createWorld(source: Level, opts: { skipIntro?: boolean; difficul
     terrain,
     level,
     difficulty,
-    obstacles: generateObstacles(level, science.targets.map((t) => t.x), difficulty),
+    obstacles: generateObstacles(
+      level,
+      science.targets.map((t) => ({ x: t.x, landing: INSTRUMENTS[t.kind].landing })),
+      difficulty,
+    ),
     spin: 1,
     intro,
     landing: null,
@@ -140,6 +154,10 @@ export function createWorld(source: Level, opts: { skipIntro?: boolean; difficul
     battery: 1,
     wind: 0,
     turbulence: 0,
+    rotors: TOTAL_ROTORS,
+    invuln: 0,
+    repair: 0,
+    lastStrike: -99,
   };
   if (intro) {
     const y = terrain.groundUnder(START_X) + START_AGL + SKID_DROP;
@@ -169,6 +187,9 @@ export function altitudeAGL(w: World): number {
   return w.craft.y - SKID_DROP - w.terrain.groundUnder(w.craft.x);
 }
 
+/** True once the craft has crashed. (A function so TypeScript doesn't assume the status is unchanged by a call.) */
+const isCrashed = (w: World): boolean => w.status === 'crashed';
+
 /** Power is lost with an empty battery: the craft can only auto-descend. */
 export function isPowerLost(w: World): boolean {
   return w.status === 'flying' && w.battery <= 0;
@@ -195,6 +216,19 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   const rain = weatherOn ? rainAt(w.level.zones, c.x, w.time) : 0;
   /** Rain as it bites at this difficulty. */
   const wet = rain * w.difficulty.weatherMult;
+
+  // Squall fronts and cryo-vents knock out rotors. A short grace period follows each strike.
+  w.invuln = Math.max(0, w.invuln - dt);
+  if (weatherOn && w.invuln <= 0) {
+    const hit = strikeCheck(w);
+    if (hit) {
+      applyStrike(w, hit.kind, hit.dir);
+      if (isCrashed(w)) return;
+    }
+  }
+  /** Lost rotors cost lift, push and energy, but the craft keeps flying: that redundancy is by design. */
+  const lost = TOTAL_ROTORS - w.rotors;
+  const rotorPower = 0.55 + 0.45 * (w.rotors / TOTAL_ROTORS);
   w.wind = weatherOn ? gustAt(w.level.gust, w.time).accel : 0;
 
   // Energy gates control: no power means an automatic, level descent; a flat battery can't lift off.
@@ -212,7 +246,7 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
   const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
   const vsTarget =
-    input.climb > 0 ? CLIMB_SPEED * (1 - Math.min(0.75, RAIN_CLIMB_PENALTY * wet)) * input.climb : descendSpeed * input.climb;
+    input.climb > 0 ? CLIMB_SPEED * rotorPower * (1 - Math.min(0.75, RAIN_CLIMB_PENALTY * wet)) * input.climb : descendSpeed * input.climb;
   const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
   const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
   c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
@@ -222,6 +256,19 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   if (w.status === 'landed') {
     // Sitting on the ground: recharge, slide to a stop, lift off once thrust beats gravity.
     w.battery = Math.min(1, w.battery + LANDED_CHARGE * (night ? NIGHT_CHARGE_MULT : 1) * (Math.abs(c.x) <= BASE_RADIUS ? BASE_CHARGE_MULT : 1) * dt);
+    // The base also repairs rotors, one at a time.
+    if (Math.abs(c.x) <= BASE_RADIUS && w.rotors < TOTAL_ROTORS) {
+      w.repair += dt;
+      if (w.repair >= w.difficulty.rotorRepair) {
+        w.rotors++;
+        w.repair = 0;
+        w.science.toast = 'Rotor repaired';
+        w.science.toastNote = `${w.rotors} of ${TOTAL_ROTORS} rotors working`;
+        w.science.toastUntil = w.time + 3;
+      }
+    } else {
+      w.repair = 0;
+    }
     if (w.battery < MIN_TAKEOFF_BATTERY) w.message = `Recharging: ${Math.round(w.battery * 100)}%`;
     else if (['Recharging', 'POWER', 'Safe'].some((m) => w.message.startsWith(m))) w.message = 'Ready for takeoff';
     c.vx *= Math.exp(-4 * dt);
@@ -243,11 +290,11 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Flight burns battery in proportion to climb and tilt effort; the MMRTG trickle barely offsets it.
   const load =
     HOVER_DRAIN + (CLIMB_DRAIN * Math.abs(c.vy)) / CLIMB_SPEED + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
-  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * wet) * (1 + 0.8 * turb.intensity) * w.level.drainMult) * dt));
+  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * wet) * (1 + 0.8 * turb.intensity) * (1 + 0.12 * lost) * w.level.drainMult) * dt));
   if (isPowerLost(w)) w.message = 'POWER LOST - emergency landing';
 
   // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
-  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind) * dt;
+  c.vx += (H_ACCEL * rotorPower * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind) * dt;
   c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
   c.x += c.vx * dt;
   c.y += c.vy * dt;
@@ -266,6 +313,32 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   }
 
   resolveGround(w);
+}
+
+/** A rotor is knocked out. Vents throw the craft up (even off the ground); squalls shove it along and down. */
+function applyStrike(w: World, kind: 'squall' | 'vent', dir: number): void {
+  const c = w.craft;
+  w.rotors -= 1;
+  w.invuln = STRIKE_INVULN;
+  w.lastStrike = w.time;
+  if (kind === 'vent') {
+    c.y += 5;
+    c.vy = Math.max(c.vy, 30);
+    if (w.status === 'landed') w.status = 'flying';
+  } else {
+    c.vx += dir * 18;
+    c.vy -= 12;
+  }
+  if (TOTAL_ROTORS - w.rotors >= w.difficulty.rotorsFatal) {
+    w.status = 'crashed';
+    w.message = 'Too many rotors lost';
+    c.vx = 0;
+    c.vy = 0;
+    return;
+  }
+  w.science.toast = `ROTOR STRIKE: ${w.rotors} of ${TOTAL_ROTORS} left`;
+  w.science.toastNote = `${kind === 'vent' ? 'A cryo-vent erupted under you.' : 'A squall front clipped you.'} Repair at the base.`;
+  w.science.toastUntil = w.time + 4;
 }
 
 function resolveGround(w: World): void {

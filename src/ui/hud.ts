@@ -1,11 +1,12 @@
 import { INSTRUMENTS } from '../content/instruments';
-import { warningsAhead } from '../sim/obstacles';
+import { squallState, warningsAhead } from '../sim/obstacles';
 import {
   BASE_RADIUS,
   LOW_BATTERY,
   MAX_IMPACT_SPEED,
   MAX_LAND_SLOPE,
   MIN_TAKEOFF_BATTERY,
+  TOTAL_ROTORS,
   PAD_BULLSEYE,
 } from '../sim/constants';
 import { dayNumber, phaseLabel } from '../sim/daynight';
@@ -37,16 +38,18 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
     ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
     ['SCORE', `${w.science.score}`],
     ['SLOPE', agl < 30 ? slope.toFixed(2) : '--'],
+    ...(w.difficulty.rotorsFatal < 99 ? [['ROTORS', `${w.rotors}/${TOTAL_ROTORS}`] as [string, string]] : []),
   ];
   ctx.fillStyle = 'rgba(20,10,0,0.55)';
-  ctx.fillRect(u * 0.6, u * 0.6, u * 12, u * (lines.length * 1.35 + 1.9));
+  ctx.fillRect(u * 0.6, u * 0.6, u * 13, u * (lines.length * 1.35 + 1.9));
   lines.forEach(([k, v], i) => {
     let color = '#ffe2b0';
     if (k === 'V/S' && risky) color = '#ff6a4a';
     if (k === 'BATT' && low) color = blink ? '#ff6a4a' : '#ffe2b0';
     if (k === 'SLOPE' && agl < 30 && Math.abs(slope) > MAX_LAND_SLOPE) color = '#ff6a4a';
+    if (k === 'ROTORS' && w.rotors < TOTAL_ROTORS) color = w.time - w.lastStrike < 1.5 && blink ? '#ffffff' : '#ff6a4a';
     ctx.fillStyle = color;
-    ctx.fillText(`${k.padEnd(6)}${v}`, u, u * (1.9 + i * 1.35));
+    ctx.fillText(`${k.padEnd(7)}${v}`, u, u * (1.9 + i * 1.35));
   });
   // Battery bar with the takeoff minimum marked.
   const by = u * (1.9 + lines.length * 1.35) - u * 0.2;
@@ -152,6 +155,25 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
     }
     ctx.fillStyle = '#ff6a4a';
     for (const sp of w.obstacles.spires) ctx.fillRect(at(sp.x) - 1, ry - u * 0.8, 2, u * 1.6);
+    // Squall fronts (moving orange bars) and cryo-vents (orange diamonds).
+    ctx.fillStyle = 'rgba(255,150,70,0.8)';
+    for (const sq of w.obstacles.squalls) {
+      const st = squallState(w, sq);
+      const a = Math.max(lo, st.x - sq.length / 2);
+      const b = Math.min(hi, st.x + sq.length / 2);
+      if (b > a) ctx.fillRect(at(a), ry - u * 0.7, Math.max(3, at(b) - at(a)), u * 1.4);
+    }
+    ctx.fillStyle = '#ffb347';
+    for (const v of w.obstacles.vents) {
+      const vx = at(v.x);
+      ctx.beginPath();
+      ctx.moveTo(vx, ry - u * 0.6);
+      ctx.lineTo(vx + u * 0.45, ry);
+      ctx.lineTo(vx, ry + u * 0.6);
+      ctx.lineTo(vx - u * 0.45, ry);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(at(0) - u * 0.4, ry - u * 0.4, u * 0.8, u * 0.8);
     for (const t of s.targets) {
@@ -318,6 +340,17 @@ function drawHazardHud(ctx: CanvasRenderingContext2D, w: World, cw: number, u: n
     if (ahead.spire) {
       const arrows = ahead.spire.dir > 0 ? '►►►' : '◄◄◄';
       rows.push([ahead.spire.dist < 110 && blink ? '#ff4a2a' : '#ff9a6a', `ROCK SPIRE ${arrows} ${Math.round(ahead.spire.dist)} m: CLIMB`]);
+    }
+    if (ahead.squall) {
+      const arrows = ahead.squall.dir > 0 ? '►►►' : '◄◄◄';
+      const advice = ahead.squall.above ? 'ABOVE: STAY LOW' : 'BELOW: STAY HIGH';
+      rows.push([ahead.squall.dist < 120 && blink ? '#ff4a2a' : '#ffb347', `SQUALL ${arrows} ${Math.round(ahead.squall.dist)} m, ${advice}`]);
+    }
+    if (ahead.vent) {
+      const vt = ahead.vent;
+      if (vt.state === 'erupt') rows.push(['#ff4a2a', 'VENT ERUPTING!']);
+      else if (vt.state === 'warn') rows.push([blink ? '#ff4a2a' : '#ffb347', `VENT ERUPTS IN ${vt.eta.toFixed(1)} s: ${w.status === 'landed' ? 'TAKE OFF!' : 'KEEP CLEAR'}`]);
+      else if (vt.dist < 70) rows.push(['#ffb347', `CRYO-VENT ${Math.round(vt.dist)} m, erupts in ${Math.ceil(vt.eta)} s`]);
     }
     if (ahead.cell && w.turbulence <= 0.15) {
       const kind = ahead.cell.lift < 0 ? 'DOWNDRAFT' : 'UPDRAFT';

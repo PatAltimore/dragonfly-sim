@@ -195,6 +195,12 @@ export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
       : 'none',
     hazardous ? world.difficulty.color : GREEN,
   );
+  const { squalls, vents } = world.obstacles;
+  stat(
+    'Threats',
+    squalls.length + vents.length > 0 ? `${squalls.length} squall fronts, ${vents.length} cryo-vents (a hit costs a rotor)` : 'none',
+    squalls.length + vents.length > 0 ? world.difficulty.color : GREEN,
+  );
   stat('Par time', `${mmss(level.parTime)}    score x${world.difficulty.scoreMult}`);
 
   row += u * 0.6;

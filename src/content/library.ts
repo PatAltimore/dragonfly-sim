@@ -120,6 +120,15 @@ export const LIBRARY: Entry[] = [
   },
   {
     section: 'titan',
+    title: 'Clouds and storms',
+    body: [
+      'Titan\'s clouds are probably made of methane, ethane or other simple organic compounds, and they are scattered and variable. They usually cover about 1% of the disk, but outbursts have spread them to as much as 8%.',
+      'Windblown particles leave streaks on the surface, some hundreds of kilometers long, and the dunes show that sand generally moves west to east.',
+      'Game note: the squall fronts on Medium and Hard are an arcade invention, inspired by Titan\'s changeable storm clouds.',
+    ],
+  },
+  {
+    section: 'titan',
     title: 'Seas of methane',
     body: [
       'Most of Titan\'s lakes and seas sit near the poles. Three big northern seas hold about 80% of the liquid; Kraken Mare is the largest and Ligeia Mare the second largest.',
@@ -148,6 +157,15 @@ export const LIBRARY: Entry[] = [
     body: [
       'Cassini data hint at liquid water deep inside Titan: radio waves that may bounce off a liquid-ice boundary, surface features that shifted by up to 30 km between 2005 and 2007, and gravity changes as Titan orbits Saturn.',
       'Ammonia mixed into the water could keep it liquid at around 176 K. A seismometer measures ground motion, the kind of data used to probe a world\'s interior.',
+    ],
+  },
+  {
+    section: 'titan',
+    title: 'Ice volcanoes?',
+    body: [
+      'Cassini\'s radar found candidate cryovolcanic features: the mountains Doom Mons and Erebor Mons, the large depression Sotra Patera and the flow-like Mohini Fluctus. Whether they are really volcanic is still debated.',
+      'Between 2005 and 2006 parts of Sotra Patera and Mohini Fluctus grew brighter while the plains around them did not, which may hint at activity. If such volcanoes exist they might erupt water mixed with ammonia.',
+      'Game note: the cryo-vents that erupt on a timer are an arcade invention. No one has seen a geyser on Titan.',
     ],
   },
   {
@@ -183,6 +201,7 @@ export const LIBRARY: Entry[] = [
       'Dragonfly is an octocopter: eight rotors, each about 1.35 m across. The layout is redundant, so it can lose at least one rotor or motor and keep flying.',
       'It cruises at about 10 m/s (36 km/h) and can climb as high as about 4 km. Landing mass is around 875 kg. One flight can cover up to about 8 km.',
       'Game note: your craft is far faster than the real one. That is arcade license.',
+      'Because of the redundant layout, a strike in the game knocks out one rotor at a time instead of ending the run. The craft climbs slower, pushes less and burns more energy until the base repairs it.',
     ],
   },
   {

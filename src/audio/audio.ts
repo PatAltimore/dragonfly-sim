@@ -2,7 +2,7 @@ import { LOW_BATTERY } from '../sim/constants';
 import { gustAt, rainAt } from '../sim/hazards';
 import type { World } from '../sim/world';
 
-export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery';
+export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery' | 'strike';
 
 /** Procedural sound: rotor hum, wind and rain beds plus short synthesized effects. No audio files. */
 export class GameAudio {
@@ -14,7 +14,7 @@ export class GameAudio {
   private rotorB: OscillatorNode | null = null;
   private windGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
-  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0 };
+  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, rotors: 8 };
 
   constructor(public muted: boolean) {}
 
@@ -118,6 +118,7 @@ export class GameAudio {
     const collected = w.science.targets.filter((t) => t.collected).length;
     if (collected > p.collected) this.sfx('collect');
     if (w.science.score > p.score) this.sfx('upload');
+    if (w.rotors < p.rotors) this.sfx('strike');
     const warn = gust.warn > 0;
     if (warn && !p.warn) this.sfx('warning');
     if (w.status === 'flying' && w.phase === 'flight' && w.battery < LOW_BATTERY && now > p.lowAt) {
@@ -128,12 +129,13 @@ export class GameAudio {
     p.phase = w.phase;
     p.collected = collected;
     p.score = w.science.score;
+    p.rotors = w.rotors;
     p.warn = warn;
   }
 
   /** Forget the previous state, e.g. when a new world starts, so old values don't fire effects. */
   reset(): void {
-    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0 };
+    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, rotors: 8 };
   }
 
   sfx(name: Sfx): void {
@@ -165,6 +167,10 @@ export class GameAudio {
         break;
       case 'warning':
         [0, 0.14, 0.28].forEach((d) => this.tone(740, 0.08, 'square', 0.05, d));
+        break;
+      case 'strike':
+        this.burst(0.35, 0.3, 1500);
+        this.tone(180, 0.25, 'sawtooth', 0.14, 0, 70);
         break;
       case 'lowbattery':
         this.tone(880, 0.1, 'square', 0.05);

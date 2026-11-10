@@ -76,15 +76,22 @@ Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars 
 |---|---|---|---|
 | Rock spires (solid, 22 to 80 m tall) | none | about 2.5 per km | about 4.5 per km |
 | Turbulence cells (up and downdrafts) | none | about 0.8 per km | about 1.6 per km, drifting |
+| Squall fronts (patrol the high sky) | none | about 0.8 per km, 70 to 170 m up | about 1.6 per km, 55 to 200 m up, faster |
+| Cryo-vents (erupt on a timer, many on landing targets) | none | 11 to 15 s cycle | 8 to 11 s cycle, taller plumes |
+| Rotors you can lose before going down | n/a | 4 | 3 |
 | Weather, battery drain, terrain | baseline | tougher | much tougher |
 | Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
 | Score multiplier | x1 | x1.25 | x1.5 |
 
-Spires and turbulence are what make you change altitude: you must climb over spires, and downdrafts push you toward the ground. Warnings appear on the HUD and the radar strip marks them. They are placed deterministically, never on the base or a target, and there is no ceiling, so there is always a way over. The numbers live in `src/content/difficulty.ts`.
+**Rotor strikes.** Squall fronts and erupting vents knock out a rotor instead of ending the run: the craft keeps flying but climbs slower, pushes less and burns more energy. A flickering craft is briefly protected. Landing at the base repairs one rotor every 6 s (Medium) or 9 s (Hard). Too many lost rotors and the craft goes down. The real Dragonfly has eight rotors so it can survive losing at least one.
+
+**Landing away from the base is a gamble.** Vents sit right on many landing targets and a few more are scattered about. Each one glows and flashes for about two seconds, then erupts for about a second; a countdown shows on the HUD. An eruption under a landed craft throws it into the air and costs a rotor, so time your landing right after an eruption and take off when the vent starts to glow. The base is always safe.
+
+Spires, turbulence and squalls are what make you change altitude: you must climb over spires, and downdrafts push you toward the ground. Warnings appear on the HUD and the radar strip marks them. They are placed deterministically, never on the base or a target, and there is no ceiling, so there is always a way over. The numbers live in `src/content/difficulty.ts`. The spires, cells, squalls and vents are arcade inventions; the Mission File says which real Titan features inspired them.
 
 ## The Mission File (education and science)
 
-The menu and pause screen open the **Mission File**: 28 short pages on the Dragonfly mission and Titan, in six sections:
+The menu and pause screen open the **Mission File**: 30 short pages on the Dragonfly mission and Titan, in six sections:
 
 - **Mission:** the big science question, timeline, team, the 105-minute autonomous landing, a day on Titan, and the public "Soar with Dragonfly" program.
 - **Titan:** size and gravity, the orange haze, methane weather, hydrocarbon seas, dunes of organic material, tholins, the possible hidden ocean, and the Huygens landing.

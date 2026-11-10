@@ -32,6 +32,10 @@ export const MAX_SLIDE_SPEED = 14;
 export const MAX_LAND_TILT = 0.28;
 export const MAX_LAND_SLOPE = 0.35;
 
+/** The craft is an octocopter. Hits knock rotors out; a short grace period follows each hit. */
+export const TOTAL_ROTORS = 8;
+export const STRIKE_INVULN = 1.8;
+
 /** Fixed simulation step (s). */
 export const FIXED_DT = 1 / 60;
 
