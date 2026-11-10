@@ -21,10 +21,13 @@
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
-      canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+      /* The WebGL scene sits behind the 2D canvas, which carries the HUD, menus and touch input. */
+      #scene3d { display: none; pointer-events: none; }
     </style>
   </head>
   <body>
+    <canvas id="scene3d"></canvas>
     <canvas id="game"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>

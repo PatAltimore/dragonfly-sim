@@ -28,6 +28,7 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | Restart sortie | R | Pause menu |
 | Skip the intro descent | X | |
 | Sound on / off | M | Sound button |
+| Switch 2D / 3D view | V | VIEW button on the menu |
 
 On a touch screen the joystick floats: put a finger down anywhere and drag. The farther you push, the harder you steer.
 
@@ -42,7 +43,7 @@ npm run build      # typecheck and build into dist/
 npm run preview    # serve the production build
 ```
 
-Plain TypeScript, Vite and Canvas 2D, with no runtime dependencies. Audio is synthesized with WebAudio, so there are no asset files.
+TypeScript and Vite. The default view is plain Canvas 2D; the optional 3D view uses [Three.js](https://threejs.org/), which is loaded only when the 3D view is chosen. Audio is synthesized with WebAudio, so there are no asset files.
 
 ### Layout
 
@@ -51,14 +52,19 @@ src/
   sim/       deterministic game rules: flight model, terrain, energy, science, hazards, scoring
   content/   data: instruments, sortie definitions, weather
   render2d/  Canvas 2D renderer (reads sim state, never changes it)
+  render3d/  Three.js renderer: the same side-on game drawn as a 3D scene
   input/     keyboard and touch input
-  ui/        menu screens and tutorial hints
+  ui/        menu screens, flight HUD and tutorial hints
   audio/     procedural sound
   save/      best scores and settings in localStorage
   game.ts    screen flow (menu, briefing, play, pause, debrief)
 ```
 
-The simulation never touches the DOM or the canvas, so a different renderer (for example a 3D one) can be dropped in.
+The simulation never touches the DOM or the canvas, so renderers are interchangeable.
+
+### 3D view
+
+Choose it with the VIEW button on the menu, the `V` key, or `?view=3d` in the address (`?view=2d` goes back). The choice is remembered. The gameplay is the same 2D simulation (the craft still flies in one plane); the terrain, sky, lighting, weather and craft are real 3D, seen from a slightly angled side camera.
 
 ## Deploying to GitHub Pages
 

@@ -93,7 +93,7 @@ export function maxScience(level: Level): number {
   return level.targets.reduce((sum, t) => sum + INSTRUMENTS[t.kind].value, 0);
 }
 
-export function drawMenu(s: Surface, progress: Progress, cursor: number): Hit[] {
+export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d: boolean): Hit[] {
   dim(s, 0.62);
   const u = unit(s);
   const hits: Hit[] = [];
@@ -124,7 +124,8 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number): Hit[] 
     hits.push({ id: `row:${i}`, x, y: y - u * 0.5, w, h: rowH });
   });
   hits.push(button(s, 'sound', progress.muted ? 'SOUND OFF' : 'SOUND ON', s.cw - u * 9.6, u * 1, u * 8.6, u * 2.4));
-  text(s, '↑/↓ or tap to choose    Enter or tap again to launch    M sound', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
+  hits.push(button(s, 'view', view3d ? 'VIEW: 3D' : 'VIEW: 2D', u * 1, u * 1, u * 8.6, u * 2.4));
+  text(s, '↑/↓ or tap to choose    Enter or tap again to launch    M sound    V view', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
   return hits;
 }
 

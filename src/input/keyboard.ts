@@ -4,7 +4,7 @@ const LEFT = ['ArrowLeft', 'KeyA'];
 const RIGHT = ['ArrowRight', 'KeyD'];
 const UP = ['ArrowUp', 'KeyW', 'Space'];
 const DOWN = ['ArrowDown', 'KeyS'];
-const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR', 'KeyX', 'KeyP', 'KeyQ', 'KeyM', 'Enter', 'Escape', 'Backspace'];
+const GAME_KEYS = [...LEFT, ...RIGHT, ...UP, ...DOWN, 'KeyR', 'KeyX', 'KeyP', 'KeyQ', 'KeyM', 'KeyV', 'Enter', 'Escape', 'Backspace'];
 
 export class Keyboard {
   private down = new Set<string>();

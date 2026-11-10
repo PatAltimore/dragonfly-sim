@@ -2,7 +2,7 @@ import type { GameAudio } from './audio/audio';
 import { LEVELS } from './content/levels';
 import type { Keyboard } from './input/keyboard';
 import { mergeInput, type TouchControls } from './input/touch';
-import type { Renderer } from './render2d/renderer';
+import type { SceneRenderer } from './scene-renderer';
 import { isUnlocked, recordResult, saveProgress, type Progress } from './save/progress';
 import { FIXED_DT } from './sim/constants';
 import { evaluate, type RunResult } from './sim/scoring';
@@ -30,11 +30,13 @@ export class Game {
   private skipIntro = false;
 
   constructor(
-    private renderer: Renderer,
+    private renderer: SceneRenderer,
     private keyboard: Keyboard,
     private touch: TouchControls,
     private audio: GameAudio,
     private progress: Progress,
+    private view3d: boolean,
+    private onToggleView: () => void,
   ) {
     this.world = createWorld(LEVELS[0], { skipIntro: true });
     this.backdrop = this.world;
@@ -108,6 +110,7 @@ export class Game {
   /** Route a tap on a drawn button or row to the same action its key would do. */
   private tap(id: string): void {
     if (id === 'sound') return this.toggleSound();
+    if (id === 'view') return this.onToggleView();
     switch (this.screen) {
       case 'menu': {
         const i = Number(id.split(':')[1]);
@@ -149,6 +152,7 @@ export class Game {
     this.touch.playing = this.screen === 'play';
     this.renderer.keyHints = !this.touch.enabled;
     if (this.keyboard.consumePress('KeyM')) this.toggleSound();
+    if (this.keyboard.consumePress('KeyV')) return this.onToggleView();
 
     switch (this.screen) {
       case 'menu':
@@ -181,7 +185,7 @@ export class Game {
     }
     if (this.confirm() && isUnlocked(this.progress, this.cursor)) return this.openBriefing(this.cursor);
     this.renderer.draw(this.showBackdrop(this.cursor), false);
-    this.arm(drawMenu(this.renderer.surface(), this.progress, this.cursor));
+    this.arm(drawMenu(this.renderer.surface(), this.progress, this.cursor, this.view3d));
     this.audio.update(null, false);
   }
 

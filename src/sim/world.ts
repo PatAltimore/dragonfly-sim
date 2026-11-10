@@ -108,6 +108,9 @@ export interface World {
 
 export const NO_INPUT: Input = { tilt: 0, climb: 0 };
 
+/** Weather only applies once the pilot is on the sortie, not during the intro descent. */
+export const weatherActive = (w: World): boolean => !w.intro || w.landing !== null;
+
 /** Seconds on the Titan day clock: sim time plus the level's starting offset. */
 export const clockOf = (w: World): number => w.time + w.level.clockOffset;
 
@@ -175,7 +178,7 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   }
 
   // Weather bites once the pilot is on the sortie: gusts push, rain thickens the air.
-  const weatherOn = !w.intro || w.landing !== null;
+  const weatherOn = weatherActive(w);
   const rain = weatherOn ? rainAt(w.level.zones, c.x, w.time) : 0;
   w.wind = weatherOn ? gustAt(w.level.gust, w.time).accel : 0;
 
