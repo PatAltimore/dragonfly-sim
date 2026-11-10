@@ -1,4 +1,6 @@
 import {
+  BASE_CHARGE_MULT,
+  BASE_RADIUS,
   CHUTE_SPEED,
   CHUTE_WIND,
   CLIMB_DRAIN,
@@ -20,6 +22,9 @@ import {
   MAX_TILT,
   MIN_TAKEOFF_BATTERY,
   PAD_BULLSEYE,
+  RAIN_CLIMB_PENALTY,
+  RAIN_DRAG,
+  RAIN_DRAIN,
   NIGHT_CHARGE_MULT,
   NIGHT_DRAIN_MULT,
   SKID_DROP,
@@ -32,6 +37,7 @@ import {
 } from './constants';
 import { stepDescent } from './descent';
 import { isNight } from './daynight';
+import { gustAt, rainAt } from './hazards';
 import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
 
@@ -162,6 +168,11 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
     return;
   }
 
+  // Weather bites once the pilot is on the sortie: gusts push, rain thickens the air.
+  const weatherOn = !w.intro || w.landing !== null;
+  const rain = weatherOn ? rainAt(c.x, w.time) : 0;
+  w.wind = weatherOn ? gustAt(w.time).accel : 0;
+
   // Energy gates control: no power means an automatic, level descent; a flat battery can't lift off.
   let input = pilot;
   if (isPowerLost(w)) input = { tilt: 0, climb: -1 };
@@ -176,7 +187,8 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Throttle just follows the command so the rotors look and sound right.
   // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
   const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
-  const vsTarget = input.climb > 0 ? CLIMB_SPEED * input.climb : descendSpeed * input.climb;
+  const vsTarget =
+    input.climb > 0 ? CLIMB_SPEED * (1 - RAIN_CLIMB_PENALTY * rain) * input.climb : descendSpeed * input.climb;
   const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
   const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
   c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
@@ -184,7 +196,7 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   const night = isNight(w.time);
   if (w.status === 'landed') {
     // Sitting on the ground: recharge, slide to a stop, lift off once thrust beats gravity.
-    w.battery = Math.min(1, w.battery + LANDED_CHARGE * (night ? NIGHT_CHARGE_MULT : 1) * dt);
+    w.battery = Math.min(1, w.battery + LANDED_CHARGE * (night ? NIGHT_CHARGE_MULT : 1) * (Math.abs(c.x) <= BASE_RADIUS ? BASE_CHARGE_MULT : 1) * dt);
     if (w.battery < MIN_TAKEOFF_BATTERY) w.message = `Recharging: ${Math.round(w.battery * 100)}%`;
     else if (['Recharging', 'POWER', 'Safe'].some((m) => w.message.startsWith(m))) w.message = 'Ready for takeoff';
     c.vx *= Math.exp(-4 * dt);
@@ -203,11 +215,11 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   // Flight burns battery in proportion to climb and tilt effort; the MMRTG trickle barely offsets it.
   const load =
     HOVER_DRAIN + (CLIMB_DRAIN * Math.abs(c.vy)) / CLIMB_SPEED + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
-  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1)) * dt));
+  w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * rain)) * dt));
   if (isPowerLost(w)) w.message = 'POWER LOST - emergency landing';
 
   // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
-  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * c.vx + w.wind) * dt;
+  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * rain) * c.vx + w.wind) * dt;
   c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
   c.x += c.vx * dt;
   c.y += c.vy * dt;

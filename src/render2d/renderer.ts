@@ -1,8 +1,10 @@
 import { INSTRUMENTS } from '../content/instruments';
+import { ZONES } from '../content/hazards';
 import {
   BASE_RADIUS,
   LOW_BATTERY,
   MAX_IMPACT_SPEED,
+  MAX_LAND_SLOPE,
   MIN_TAKEOFF_BATTERY,
   PAD_BULLSEYE,
   PHOTO_MAX_AGL,
@@ -13,8 +15,12 @@ import {
 } from '../sim/constants';
 import { dayNumber, daylight, phaseLabel } from '../sim/daynight';
 import { hintFor } from '../ui/hints';
+import { gustAt, hazeAt, rainAt, zoneCenter } from '../sim/hazards';
 import { cargoValue } from '../sim/science';
 import { altitudeAGL, isPowerLost, type World } from '../sim/world';
+
+/** Weather only applies once the pilot is on the sortie, not during the intro descent. */
+const weatherOn = (w: World): boolean => !w.intro || w.landing !== null;
 
 /** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
 const VIEW_HEIGHT_M = 140;
@@ -102,8 +108,10 @@ export class Renderer {
     this.drawTargets(w, scale, sx, sy);
     this.updateDust(w, dt);
     this.drawDust(scale, sx, sy);
+    this.drawFog(w, cw, ch, scale, sy);
     this.drawCanopy(w, dt, scale, sx, sy);
     this.drawCraft(w, scale, sx, sy);
+    this.drawWeatherFx(w, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
     this.drawHud(w, cw, ch);
   }
@@ -248,6 +256,98 @@ export class Renderer {
     ctx.strokeStyle = '#5a3a1c';
     ctx.lineWidth = Math.max(1, scale * 0.15);
     ctx.stroke();
+    // Ground too steep to land on glows red.
+    ctx.strokeStyle = '#ff5a3a';
+    ctx.lineWidth = Math.max(2, scale * 0.35);
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x += 2) {
+      if (Math.abs(w.terrain.slopeAt(x)) > MAX_LAND_SLOPE) {
+        ctx.moveTo(sx(x), sy(w.terrain.heightAt(x)));
+        ctx.lineTo(sx(x + 2), sy(w.terrain.heightAt(x + 2)));
+      }
+    }
+    ctx.stroke();
+  }
+
+  /** Haze banks hide the ground: a fog layer that follows the terrain contour. */
+  private drawFog(w: World, cw: number, ch: number, scale: number, sy: (y: number) => number): void {
+    if (!weatherOn(w)) return;
+    const { ctx } = this;
+    const x0 = this.camX - cw / 2 / scale;
+    const step = 6;
+    for (let px = 0; px < cw; px += step) {
+      const wx = x0 + (px + step / 2) / scale;
+      const haze = hazeAt(wx, w.time);
+      if (haze < 0.02) continue;
+      const gy = w.terrain.heightAt(wx);
+      for (const [height, alpha] of [[90, 0.3], [45, 0.3], [15, 0.25]]) {
+        ctx.fillStyle = `rgba(226,168,98,${(alpha * haze).toFixed(3)})`;
+        const top = sy(gy + height);
+        ctx.fillRect(px, Math.round(top), step, ch - Math.round(top));
+      }
+    }
+  }
+
+  /** Methane rain streaks and gloom, plus wind streaks while a gust is blowing. */
+  private drawWeatherFx(w: World, cw: number, ch: number): void {
+    if (!weatherOn(w)) return;
+    const { ctx } = this;
+    const rain = rainAt(this.camX, w.time);
+    if (rain > 0.02) {
+      ctx.fillStyle = `rgba(40,45,60,${(rain * 0.3).toFixed(3)})`;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.strokeStyle = `rgba(190,205,230,${(rain * 0.45).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, ch / 500);
+      ctx.beginPath();
+      const n = Math.floor(rain * 160);
+      const len = ch / 30;
+      for (let i = 0; i < n; i++) {
+        const x = (Math.sin(i * 12.9898) * 43758.5453 % 1 + 1) % 1;
+        const y0 = (Math.sin(i * 78.233) * 12345.678 % 1 + 1) % 1;
+        const px = x * cw;
+        const py = (((y0 * ch + w.time * ch * 1.1) % ch) + ch) % ch;
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - len * 0.25, py + len);
+      }
+      ctx.stroke();
+    }
+
+    const gust = gustAt(w.time);
+    if (gust.blow > 0.05) {
+      ctx.strokeStyle = `rgba(255,236,200,${(gust.blow * 0.35).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, ch / 450);
+      ctx.beginPath();
+      const n = Math.floor(gust.blow * 50);
+      for (let i = 0; i < n; i++) {
+        const x = (Math.sin(i * 39.346) * 43758.5453 % 1 + 1) % 1;
+        const y = (Math.sin(i * 11.135) * 12345.678 % 1 + 1) % 1;
+        const len = cw * (0.04 + 0.06 * ((Math.sin(i * 5.7) + 1) / 2));
+        const px = (((x * cw + gust.dir * w.time * cw * 1.4) % cw) + cw) % cw;
+        ctx.moveTo(px, y * ch);
+        ctx.lineTo(px - gust.dir * len, y * ch);
+      }
+      ctx.stroke();
+    }
+  }
+
+  /** Warnings for the hazards the craft is flying into or through. */
+  private drawHazardHud(w: World, cw: number, u: number): void {
+    if (!weatherOn(w) || w.status === 'crashed') return;
+    const { ctx } = this;
+    const blink = Math.floor(w.time * 4) % 2 === 0;
+    const rows: [string, string][] = [];
+    const gust = gustAt(w.time);
+    const arrow = gust.dir > 0 ? '►►►' : '◄◄◄';
+    if (gust.warn > 0) rows.push([blink ? '#ffd27a' : '#ff9a4a', `WIND GUST INCOMING ${arrow}`]);
+    else if (gust.blow > 0.05) rows.push(['#ffd27a', `WIND GUST ${arrow}`]);
+    if (rainAt(w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
+    if (hazeAt(w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
+    ctx.textAlign = 'center';
+    ctx.font = `bold ${u * 1.1}px monospace`;
+    rows.forEach(([color, text], i) => {
+      ctx.fillStyle = color;
+      ctx.fillText(text, cw / 2, u * 8.6 + i * u * 1.5);
+    });
   }
 
   /** Science target markers: landing rings for DraMS/DraGNS, hover boxes for DragonCam. */
@@ -461,6 +561,7 @@ export class Renderer {
     const agl = altitudeAGL(w);
     const risky = w.status === 'flying' && agl < 10 && -c.vy > MAX_IMPACT_SPEED * 0.8;
     const low = w.battery < LOW_BATTERY;
+    const slope = w.terrain.slopeAt(c.x);
     const blink = Math.floor(w.time * 3) % 2 === 0;
 
     const lines: [string, string][] = [
@@ -472,6 +573,7 @@ export class Renderer {
       ['BATT', `${Math.round(w.battery * 100)}%`],
       ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
       ['SCORE', `${w.science.score}`],
+      ['SLOPE', agl < 30 ? slope.toFixed(2) : '--'],
     ];
     ctx.fillStyle = 'rgba(20,10,0,0.55)';
     ctx.fillRect(u * 0.6, u * 0.6, u * 12, u * (lines.length * 1.35 + 1.9));
@@ -479,6 +581,7 @@ export class Renderer {
       let color = '#ffe2b0';
       if (k === 'V/S' && risky) color = '#ff6a4a';
       if (k === 'BATT' && low) color = blink ? '#ff6a4a' : '#ffe2b0';
+      if (k === 'SLOPE' && agl < 30 && Math.abs(slope) > MAX_LAND_SLOPE) color = '#ff6a4a';
       ctx.fillStyle = color;
       ctx.fillText(`${k.padEnd(6)}${v}`, u, u * (1.9 + i * 1.35));
     });
@@ -521,6 +624,7 @@ export class Renderer {
     }
 
     this.drawIntroHud(w, cw, ch, u);
+    this.drawHazardHud(w, cw, u);
     this.drawSortieHud(w, cw, ch, u);
 
     ctx.textAlign = 'center';
@@ -568,6 +672,13 @@ export class Renderer {
       ctx.fillRect(rx - u * 0.6, ry - u * 1.1, rw + u * 1.2, u * 2.2);
       ctx.fillStyle = 'rgba(255,226,176,0.35)';
       ctx.fillRect(rx, ry - 1, rw, 2);
+      for (const z of ZONES) {
+        const a = Math.max(lo, zoneCenter(z, w.time) - z.halfWidth);
+        const b = Math.min(hi, zoneCenter(z, w.time) + z.halfWidth);
+        if (b <= a) continue;
+        ctx.fillStyle = z.kind === 'rain' ? 'rgba(110,160,255,0.45)' : 'rgba(230,170,90,0.4)';
+        ctx.fillRect(at(a), ry - u * 0.9, at(b) - at(a), u * 1.8);
+      }
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(at(0) - u * 0.4, ry - u * 0.4, u * 0.8, u * 0.8);
       for (const t of s.targets) {

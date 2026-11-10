@@ -82,3 +82,10 @@ export const PROGRESS_DECAY = 0.6;
 /** Landing within this distance of x = 0 counts as being at the base. */
 export const BASE_RADIUS = 12;
 export const UPLOAD_TIME = 2;
+
+/** Methane rain: how much it slows climbing, adds drag and burns battery at full intensity. */
+export const RAIN_CLIMB_PENALTY = 0.3;
+export const RAIN_DRAG = 0.6;
+export const RAIN_DRAIN = 0.5;
+/** Landed at the base (the lander's power station) the battery charges this much faster. */
+export const BASE_CHARGE_MULT = 3;
