@@ -6,8 +6,7 @@ export const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard'];
 
 /**
  * How a difficulty bends a sortie. Easy is the baseline. Medium and Hard make the weather and landing
- * stricter, make the ground rougher, and add obstacles that force the pilot to change altitude:
- * rock spires to climb over and turbulence cells to go around.
+ * stricter, make the ground rougher, and add ice vents that lob bouncing methane ice balls.
  */
 export interface DifficultySpec {
   id: Difficulty;
@@ -33,29 +32,19 @@ export interface DifficultySpec {
   /** Multiplier on the sortie's score. */
   scoreMult: number;
 
-  /** Rock spires per km of track, their height and half-width ranges (m). */
-  spiresPerKm: number;
-  spireHeight: [number, number];
-  spireHalfWidth: [number, number];
-  /** Turbulence cells per km, their height above the ground, radius (m), drift (m/s) and peak shove (m/s). */
-  cellsPerKm: number;
-  cellAlt: [number, number];
-  cellRadius: [number, number];
-  cellDrift: number;
-  turbulence: number;
-
-  /** Squall fronts per km: fast storm bands sweeping horizontally through the high sky. Altitude (m) and speed (m/s) ranges. */
-  squallsPerKm: number;
-  squallAlt: [number, number];
-  squallSpeed: [number, number];
-  /** Cryo-vents: extra ones per km, the chance a landing target has one right on it, the eruption period (s) and plume height (m). */
+  /** Ice vents: extra ones per km, the chance each landing target has one nearby, and seconds between shots. */
   ventsPerKm: number;
   ventTargetChance: number;
   ventPeriod: [number, number];
-  plumeHeight: [number, number];
-  /** How many rotors can be lost before the craft goes down, and seconds of repair per rotor when landed at the base. */
-  rotorsFatal: number;
-  rotorRepair: number;
+  /** Ice balls: launch speed (m/s), the chances a shot is a low flat one or a mid-angle arc (the rest are steep lobs),
+   * balls per shot, lifetime (s), radius (m), and the chance a shot is aimed toward the craft. */
+  ballSpeed: [number, number];
+  ballFlat: number;
+  ballMid: number;
+  ballBurst: number;
+  ballLife: number;
+  ballRadius: number;
+  ballAim: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
@@ -74,28 +63,21 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     landingTol: 1,
     scienceTime: 1,
     scoreMult: 1,
-    spiresPerKm: 0,
-    spireHeight: [0, 0],
-    spireHalfWidth: [0, 0],
-    cellsPerKm: 0,
-    cellAlt: [0, 0],
-    cellRadius: [0, 0],
-    cellDrift: 0,
-    turbulence: 0,
-    squallsPerKm: 0,
-    squallAlt: [0, 0],
-    squallSpeed: [0, 0],
     ventsPerKm: 0,
     ventTargetChance: 0,
     ventPeriod: [10, 10],
-    plumeHeight: [0, 0],
-    rotorsFatal: 99,
-    rotorRepair: 6,
+    ballSpeed: [0, 0],
+    ballFlat: 0,
+    ballMid: 0,
+    ballBurst: 0,
+    ballLife: 0,
+    ballRadius: 0,
+    ballAim: 0,
   },
   medium: {
     id: 'medium',
     label: 'MEDIUM',
-    tagline: 'Rock spires and turbulence: climb, descend and weave.',
+    tagline: 'Ice vents lob bouncing balls. Watch the sky, on the ground too.',
     color: '#ffd27a',
     drainMult: 1.15,
     gustStrength: 1.25,
@@ -107,28 +89,21 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     landingTol: 0.85,
     scienceTime: 1.25,
     scoreMult: 1.25,
-    spiresPerKm: 2.5,
-    spireHeight: [22, 52],
-    spireHalfWidth: [3, 6],
-    cellsPerKm: 0.8,
-    cellAlt: [55, 110],
-    cellRadius: [26, 36],
-    cellDrift: 0,
-    turbulence: 30,
-    squallsPerKm: 0.8,
-    squallAlt: [70, 170],
-    squallSpeed: [30, 45],
     ventsPerKm: 0.6,
     ventTargetChance: 0.4,
-    ventPeriod: [11, 15],
-    plumeHeight: [40, 55],
-    rotorsFatal: 4,
-    rotorRepair: 6,
+    ventPeriod: [9, 13],
+    ballSpeed: [44, 60],
+    ballFlat: 0.3,
+    ballMid: 0.25,
+    ballBurst: 1,
+    ballLife: 16,
+    ballRadius: 2,
+    ballAim: 0.4,
   },
   hard: {
     id: 'hard',
     label: 'HARD',
-    tagline: 'Dense spires, drifting storms, harsh weather, tight landings.',
+    tagline: 'More vents, double shots, harsh weather, tight landings.',
     color: '#ff6a4a',
     drainMult: 1.3,
     gustStrength: 1.5,
@@ -140,23 +115,16 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     landingTol: 0.7,
     scienceTime: 1.5,
     scoreMult: 1.5,
-    spiresPerKm: 4.5,
-    spireHeight: [30, 80],
-    spireHalfWidth: [3, 7],
-    cellsPerKm: 1.6,
-    cellAlt: [45, 120],
-    cellRadius: [28, 42],
-    cellDrift: 4,
-    turbulence: 42,
-    squallsPerKm: 1.6,
-    squallAlt: [55, 200],
-    squallSpeed: [45, 70],
     ventsPerKm: 1.2,
     ventTargetChance: 0.75,
-    ventPeriod: [8, 11],
-    plumeHeight: [55, 75],
-    rotorsFatal: 3,
-    rotorRepair: 9,
+    ventPeriod: [6.5, 9],
+    ballSpeed: [48, 68],
+    ballFlat: 0.35,
+    ballMid: 0.25,
+    ballBurst: 2,
+    ballLife: 20,
+    ballRadius: 2.3,
+    ballAim: 0.6,
   },
 };
 

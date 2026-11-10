@@ -13,15 +13,11 @@ export function hintFor(w: World): string | null {
   if (w.intro && !w.landing && w.status === 'flying') {
     return 'Powered flight! ←/→ tilt, ↓ descend, ↑ climb. Ease down level onto the pad.';
   }
-  // On Medium and Hard, a second hint right after the first explains the new obstacles.
-  const hazards = w.obstacles.spires.length + w.obstacles.cells.length > 0;
   const until = w.science.hintUntil;
-  if (hazards && w.phase === 'flight' && !w.science.complete && until > 0 && w.time >= until && w.time < until + 12) {
-    return 'Rock spires are solid: climb over them. Turbulence cells shove you: go around or over.';
-  }
-  const threats = w.obstacles.squalls.length + w.obstacles.vents.length > 0;
-  if (threats && w.phase === 'flight' && !w.science.complete && until > 0 && w.time >= until + 12 && w.time < until + 24) {
-    return 'Squalls patrol the high sky, vents erupt on a timer. A strike costs a rotor: repair at the base.';
+  // On Medium and Hard, a second hint right after the first explains the vents.
+  const vents = w.obstacles.vents.length > 0;
+  if (vents && w.phase === 'flight' && !w.science.complete && until > 0 && w.time >= until && w.time < until + 12) {
+    return 'Ice vents lob balls that bounce and roll, pushed by the wind. Any hit destroys you.';
   }
   if (w.phase === 'flight' && !w.science.complete && w.science.hintUntil > w.time) {
     return 'Land on orange/cyan rings to drill and scan, hover in violet boxes to image. Land at the LZ to upload.';

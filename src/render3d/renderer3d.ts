@@ -2,17 +2,17 @@ import * as THREE from 'three';
 import { INSTRUMENTS } from '../content/instruments';
 import type { SceneRenderer } from '../scene-renderer';
 import {
+  BALL_LIMIT,
   MAX_LAND_SLOPE,
   PAD_BULLSEYE,
   PHOTO_MAX_AGL,
   PHOTO_MIN_AGL,
   PHOTO_RADIUS,
   TARGET_RADIUS,
-  TOTAL_ROTORS,
 } from '../sim/constants';
 import { daylight } from '../sim/daynight';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
-import { cellCenter, squallState, ventState, type Obstacles } from '../sim/obstacles';
+import { VENT_FLASH, ventState, type Obstacles } from '../sim/obstacles';
 import { drawHud } from '../ui/hud';
 import type { Surface } from '../ui/screens';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
@@ -31,9 +31,6 @@ const CAM_PITCH = 0.1;
 const GRID_DX = 4;
 const GRID_NX = 181;
 const ROWS = [90, 60, 40, 28, 18, 10, 4, 0, -4, -10, -18, -30, -45, -65, -90, -125, -170, -230, -310, -420, -560, -750];
-
-/** Which rotors drop out first as the craft takes damage (indices into the eight rotor hubs). */
-const ROTOR_LOSS_ORDER = [3, 6, 1, 4, 7, 2, 5, 0];
 
 const DAY_SKY = ['#6b3a14', '#c87a2c', '#e8a54a'];
 const NIGHT_SKY = ['#05030a', '#160d18', '#241628'];
@@ -77,7 +74,6 @@ const lit = (color: THREE.ColorRepresentation, extra: THREE.MeshLambertMaterialP
 
 interface CraftModel {
   group: THREE.Group;
-  hubs: THREE.Group[];
   body: THREE.MeshLambertMaterial;
   blades: THREE.Object3D[];
   discs: THREE.MeshBasicMaterial[];
@@ -123,7 +119,6 @@ function buildCraft(): CraftModel {
 
   // Four arms, each with a coaxial pair of rotors (eight in all).
   const blades: THREE.Object3D[] = [];
-  const hubs: THREE.Group[] = [];
   const discs: THREE.MeshBasicMaterial[] = [];
   const bladeMats: THREE.MeshLambertMaterial[] = [];
   const corners: [number, number][] = [[-1.9, -1.35], [-1.9, 1.35], [1.9, -1.35], [1.9, 1.35]];
@@ -150,11 +145,10 @@ function buildCraft(): CraftModel {
       const disc = new THREE.Mesh(new THREE.CircleGeometry(1.35, 24), discMat);
       disc.rotation.x = -Math.PI / 2;
       hub.add(disc);
-      hubs.push(hub);
       group.add(hub);
     }
   });
-  return { group, hubs, body, blades, discs, bladeMats };
+  return { group, body, blades, discs, bladeMats };
 }
 
 interface TargetModel {
@@ -215,13 +209,11 @@ export class Renderer3D implements SceneRenderer {
   private targetsRef: object | null = null;
   private targetRoot = new THREE.Group();
 
-  private spireRoot = new THREE.Group();
-  private cellRoot = new THREE.Group();
-  private spireLamps: THREE.Mesh[] = [];
-  private cellModels: { group: THREE.Group; outer: THREE.MeshBasicMaterial; rings: THREE.Mesh[]; phase: number }[] = [];
+  private ventRoot = new THREE.Group();
   private obstaclesRef: Obstacles | null = null;
-  private squallModels: { group: THREE.Group; body: THREE.MeshBasicMaterial; glow: THREE.Mesh; streaks: THREE.LineSegments; phase: number }[] = [];
-  private ventModels: { group: THREE.Group; ring: THREE.MeshBasicMaterial; plume: THREE.Mesh; puff: THREE.Mesh; warnBox: THREE.LineSegments }[] = [];
+  private ventModels: { group: THREE.Group; ring: THREE.MeshBasicMaterial; puff: THREE.Mesh; puffMat: THREE.MeshBasicMaterial }[] = [];
+  private ballRoot = new THREE.Group();
+  private ballMeshes: THREE.Mesh[] = [];
 
   private rain: THREE.LineSegments;
   private wind: THREE.LineSegments;
@@ -304,7 +296,16 @@ export class Renderer3D implements SceneRenderer {
     this.canopyLines = this.canopyGroup.children.find((o) => o instanceof THREE.LineSegments) as THREE.LineSegments;
     this.scene.add(this.canopyGroup);
 
-    this.scene.add(this.targetRoot, this.spireRoot, this.cellRoot);
+    this.scene.add(this.targetRoot, this.ventRoot, this.ballRoot);
+    // A fixed pool of ice balls, shown and moved from the sim each frame.
+    const ballGeo = new THREE.IcosahedronGeometry(1, 1);
+    const ballMat = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#8fb8e0', emissiveIntensity: 0.9, flatShading: true, fog: false });
+    for (let i = 0; i < BALL_LIMIT; i++) {
+      const ball = new THREE.Mesh(ballGeo, ballMat);
+      ball.visible = false;
+      this.ballRoot.add(ball);
+      this.ballMeshes.push(ball);
+    }
 
     // Weather: rain streaks, wind streaks and thrown-up dust.
     this.rain = this.streaks(700, 0xbfd0ea);
@@ -441,214 +442,81 @@ export class Renderer3D implements SceneRenderer {
     this.steepGeo.setDrawRange(0, n * 6);
   }
 
-  /** Squall fronts and cryo-vents, built alongside the spires and cells. */
-  private buildThreats(w: World): void {
-    for (const s of w.obstacles.squalls) {
-      const group = new THREE.Group();
-      const bodyMat = new THREE.MeshBasicMaterial({ color: '#3b3656', transparent: true, opacity: 0.62, depthWrite: false, fog: false });
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), bodyMat);
-      body.scale.set(s.length / 2, s.thick / 2, s.thick * 0.9);
-      group.add(body);
-      const core = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 16, 10),
-        new THREE.MeshBasicMaterial({ color: '#1a1830', transparent: true, opacity: 0.5, depthWrite: false, fog: false }),
-      );
-      core.scale.set(s.length * 0.33, s.thick * 0.3, s.thick * 0.55);
-      group.add(core);
-      const glow = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 12, 8),
-        new THREE.MeshBasicMaterial({ color: '#ffaa5a', transparent: true, opacity: 0.55, depthWrite: false, fog: false }),
-      );
-      glow.scale.set(s.length * 0.1, s.thick * 0.42, s.thick * 0.5);
-      group.add(glow);
-      const streakGeo = new THREE.BufferGeometry();
-      streakGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(8 * 6), 3));
-      const streaks = new THREE.LineSegments(
-        streakGeo,
-        new THREE.LineBasicMaterial({ color: 0xd2d7f0, transparent: true, opacity: 0.4, depthWrite: false, fog: false }),
-      );
-      streaks.frustumCulled = false;
-      group.add(streaks);
-      this.cellRoot.add(group);
-      this.squallModels.push({ group, body: bodyMat, glow, streaks, phase: s.phase });
-    }
-
+  /** Ice vent craters. */
+  private buildVents(w: World): void {
     for (const v of w.obstacles.vents) {
       const surface = w.terrain.heightAt(v.x);
       const group = new THREE.Group();
       group.position.set(v.x, surface, 0);
       const mound = new THREE.Mesh(
-        new THREE.CylinderGeometry(3.2, 6.5, 2.6, 10),
+        new THREE.CylinderGeometry(3.4, 7, 3, 10),
         new THREE.MeshLambertMaterial({ color: '#4a3626', flatShading: true }),
       );
-      mound.position.y = 0.9;
+      mound.position.y = 1.1;
       group.add(mound);
       const ringMat = new THREE.MeshBasicMaterial({ color: '#7a3a1a', fog: false });
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(3.3, 0.45, 6, 24), ringMat);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.5, 6, 24), ringMat);
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = 2.25;
+      ring.position.y = 2.6;
       group.add(ring);
-      const plumeMat = new THREE.MeshBasicMaterial({
-        color: '#e6f4ff',
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        fog: false,
-      });
-      const plume = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.5, 1, 14, 1, true), plumeMat);
-      plume.visible = false;
-      group.add(plume);
-      const puff = new THREE.Mesh(
-        new THREE.SphereGeometry(1, 12, 8),
-        new THREE.MeshBasicMaterial({ color: '#f2faff', transparent: true, opacity: 0.4, depthWrite: false, fog: false }),
-      );
+      const puffMat = new THREE.MeshBasicMaterial({ color: '#f2faff', transparent: true, opacity: 0.6, depthWrite: false, fog: false });
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), puffMat);
       puff.visible = false;
       group.add(puff);
-      const warnMat = new THREE.LineDashedMaterial({ color: '#ff7a3a', dashSize: 1.6, gapSize: 1.2, transparent: true, opacity: 0.8, fog: false });
-      const warnBox = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(v.halfWidth * 2, v.plume, v.halfWidth * 2)),
-        warnMat,
-      );
-      warnBox.computeLineDistances();
-      warnBox.position.y = v.plume / 2;
-      warnBox.visible = false;
-      group.add(warnBox);
-      this.spireRoot.add(group);
-      this.ventModels.push({ group, ring: ringMat, plume, puff, warnBox });
+      this.ventRoot.add(group);
+      this.ventModels.push({ group, ring: ringMat, puff, puffMat });
     }
   }
 
-  private updateThreats(w: World): void {
-    w.obstacles.squalls.forEach((s, i) => {
-      const m = this.squallModels[i];
-      if (!m) return;
-      const st = squallState(w, s);
-      m.group.position.set(st.x, st.y, 0);
-      m.glow.position.x = st.dir * s.length * 0.4;
-      const p = m.streaks.geometry.getAttribute('position') as THREE.BufferAttribute;
-      for (let k = 0; k < 8; k++) {
-        const y = ((k % 4) - 1.5) * s.thick * 0.28;
-        const z = (k < 4 ? -1 : 1) * s.thick * 0.3;
-        const len = s.length * (0.7 + 0.35 * ((k * 5) % 3));
-        p.setXYZ(k * 2, -st.dir * s.length * 0.3, y, z);
-        p.setXYZ(k * 2 + 1, -st.dir * (s.length * 0.3 + len), y, z);
-      }
-      p.needsUpdate = true;
-      m.body.opacity = 0.6 + 0.3 * Math.max(0, Math.sin(w.time * 6 + m.phase * 5)) ** 10;
-    });
+  private updateVents(w: World): void {
     w.obstacles.vents.forEach((v, i) => {
       const m = this.ventModels[i];
       if (!m) return;
       const vs = ventState(w, v);
-      m.ring.color.set(vs.state === 'erupt' ? '#ffffff' : vs.state === 'warn' ? (Math.floor(w.time * 8) % 2 ? '#ff5a2a' : '#ffb347') : '#7a3a1a');
-      m.warnBox.visible = vs.state === 'warn';
-      const erupting = vs.state === 'erupt';
-      m.plume.visible = erupting;
-      m.puff.visible = erupting;
-      if (erupting) {
-        m.plume.scale.set(v.halfWidth, vs.height, v.halfWidth);
-        m.plume.position.y = 2 + vs.height / 2;
-        m.puff.scale.set(v.halfWidth * 1.15, v.halfWidth * 0.8, v.halfWidth * 1.15);
-        m.puff.position.y = 2 + vs.height;
+      m.ring.color.set(vs.state === 'flash' ? '#ffffff' : vs.state === 'warn' ? (Math.floor(w.time * 8) % 2 ? '#ff5a2a' : '#ffb347') : '#7a3a1a');
+      // A burst of vapor at the muzzle as the ball leaves.
+      m.puff.visible = vs.state === 'flash';
+      if (vs.state === 'flash') {
+        const t = (v.period - vs.eta) / VENT_FLASH;
+        m.puff.position.y = 4 + t * 6;
+        m.puff.scale.setScalar(2 + t * 5);
+        m.puffMat.opacity = 0.6 * (1 - t);
       }
     });
   }
 
-  /** Rebuild the rock spires and turbulence cells for a world. */
+  /** Position the pooled ice-ball meshes from the sim. Balls shrink away as they dissolve. */
+  private updateBalls(w: World): void {
+    const live = w.balls.filter((b) => b.delay <= 0);
+    this.ballMeshes.forEach((mesh, i) => {
+      const b = live[i];
+      mesh.visible = !!b;
+      if (!b) return;
+      const fade = Math.min(1, (b.life - b.age) / 1.5);
+      mesh.position.set(b.x, b.y, 0);
+      mesh.scale.setScalar(b.r * (0.6 + 0.4 * fade));
+      mesh.rotation.set(b.age * 2, b.age * 1.3, 0);
+    });
+  }
+
+  /** Rebuild the vent craters for a world. */
   private rebuildObstacles(w: World): void {
-    for (const root of [this.spireRoot, this.cellRoot]) {
-      for (const child of [...root.children]) {
-        root.remove(child);
-        child.traverse((o) => {
-          const mesh = o as THREE.Mesh;
-          mesh.geometry?.dispose();
-          const mat = mesh.material as THREE.Material | undefined;
-          mat?.dispose();
-        });
-      }
+    for (const child of [...this.ventRoot.children]) {
+      this.ventRoot.remove(child);
+      child.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        mesh.geometry?.dispose();
+        (mesh.material as THREE.Material | undefined)?.dispose();
+      });
     }
-    this.spireLamps = [];
-    this.cellModels = [];
-    this.squallModels = [];
     this.ventModels = [];
-
-    for (const s of w.obstacles.spires) {
-      const surface = w.terrain.heightAt(s.x);
-      const geo = new THREE.CylinderGeometry(s.topHalf, s.baseHalf, s.height + 3, 8, 4);
-      // Roughen the column so it reads as rock rather than a pipe.
-      const p = geo.getAttribute('position');
-      for (let i = 0; i < p.count; i++) {
-        const y = p.getY(i);
-        p.setX(i, p.getX(i) * (1 + 0.2 * noise2(p.getX(i) * 0.7 + s.x, y * 0.3)));
-        p.setZ(i, p.getZ(i) * (1 + 0.2 * noise2(p.getZ(i) * 0.7 + s.x, y * 0.3 + 9)));
-      }
-      geo.computeVertexNormals();
-      const rock = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: '#7a5f42', flatShading: true }));
-      rock.position.set(s.x, surface - 3 + (s.height + 3) / 2, 0);
-      this.spireRoot.add(rock);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 8), unlit('#ff5a3a'));
-      lamp.position.set(s.x, surface + s.height + 1.8, 0);
-      this.spireRoot.add(lamp);
-      this.spireLamps.push(lamp);
-    }
-
-    for (const cell of w.obstacles.cells) {
-      const down = cell.lift < 0;
-      const group = new THREE.Group();
-      const outerMat = new THREE.MeshBasicMaterial({
-        color: down ? '#3d4466' : '#7a6650',
-        transparent: true,
-        opacity: 0.3,
-        depthWrite: false,
-        fog: false,
-      });
-      group.add(new THREE.Mesh(new THREE.SphereGeometry(cell.radius, 24, 16), outerMat));
-      const innerMat = new THREE.MeshBasicMaterial({
-        color: down ? '#232848' : '#5a4838',
-        transparent: true,
-        opacity: 0.25,
-        depthWrite: false,
-        fog: false,
-      });
-      group.add(new THREE.Mesh(new THREE.SphereGeometry(cell.radius * 0.6, 20, 12), innerMat));
-      const rings: THREE.Mesh[] = [];
-      for (let k = 0; k < 2; k++) {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(cell.radius * (0.8 - k * 0.22), 0.7, 6, 48),
-          new THREE.MeshBasicMaterial({ color: 0xc9d0ff, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
-        );
-        rings.push(ring);
-        group.add(ring);
-      }
-      // The arrow says which way the air is going: down is the dangerous one.
-      const arrow = new THREE.Mesh(
-        new THREE.ConeGeometry(cell.radius * 0.22, cell.radius * 0.5, 12),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, fog: false }),
-      );
-      arrow.rotation.x = down ? Math.PI : 0;
-      group.add(arrow);
-      this.cellRoot.add(group);
-      this.cellModels.push({ group, outer: outerMat, rings, phase: cell.phase });
-    }
-    this.buildThreats(w);
+    this.buildVents(w);
     this.obstaclesRef = w.obstacles;
   }
 
   private updateObstacles(w: World): void {
-    const blink = Math.floor(w.time * 2) % 2 === 0;
-    this.updateThreats(w);
-    for (const lamp of this.spireLamps) (lamp.material as THREE.MeshBasicMaterial).color.set(blink ? '#ff5a3a' : '#6a2214');
-    w.obstacles.cells.forEach((cell, i) => {
-      const m = this.cellModels[i];
-      if (!m) return;
-      const ctr = cellCenter(w, cell);
-      m.group.position.set(ctr.x, ctr.y, 0);
-      m.rings[0].rotation.set(Math.PI / 2 + 0.35, w.time * 1.4 + m.phase, 0);
-      m.rings[1].rotation.set(Math.PI / 2 - 0.5, -w.time * 1.9 + m.phase, 0.4);
-      // An occasional flicker, like lightning inside the cloud.
-      m.outer.opacity = 0.27 + 0.18 * Math.max(0, Math.sin(w.time * 5 + m.phase)) ** 8;
-    });
+    this.updateVents(w);
+    this.updateBalls(w);
   }
 
   private rebuildTargets(w: World): void {
@@ -768,16 +636,12 @@ export class Renderer3D implements SceneRenderer {
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
     const dist = this.viewH / 2 / Math.tan((FOV_DEG * Math.PI) / 360);
-    // Turbulence shakes the view.
-    const shake = w.turbulence;
-    const shx = shake > 0.02 ? (Math.sin(w.time * 53) + Math.sin(w.time * 31.7)) * 0.012 * this.viewH * shake : 0;
-    const shy = shake > 0.02 ? (Math.sin(w.time * 47) + Math.sin(w.time * 29.3)) * 0.012 * this.viewH * shake : 0;
     this.camera.position.set(
-      this.camX + shx - Math.sin(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
-      this.camY + shy + Math.sin(CAM_PITCH) * dist,
+      this.camX - Math.sin(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
+      this.camY + Math.sin(CAM_PITCH) * dist,
       Math.cos(CAM_YAW) * Math.cos(CAM_PITCH) * dist,
     );
-    this.camera.lookAt(this.camX + shx, this.camY + shy, 0);
+    this.camera.lookAt(this.camX, this.camY, 0);
 
     // Terrain grid recenters on a lattice so vertices stay put in the world.
     const snap = Math.round(this.camX / GRID_DX) * GRID_DX;
@@ -869,12 +733,6 @@ export class Renderer3D implements SceneRenderer {
       mat.transparent = true;
       mat.opacity = crashed ? 1 : clamp(1 - throttle * 3, 0.15, 1);
     }
-    // Knocked-out rotors vanish, and the craft flickers briefly after a strike.
-    const gone = ROTOR_LOSS_ORDER.slice(0, TOTAL_ROTORS - w.rotors);
-    m.hubs.forEach((hub, i) => {
-      hub.visible = !gone.includes(i);
-    });
-    m.group.visible = !(w.invuln > 0 && Math.floor(w.time * 14) % 2 === 0);
   }
 
   private updateCanopy(w: World, dt: number): void {

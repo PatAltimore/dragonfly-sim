@@ -2,7 +2,7 @@ import { LOW_BATTERY } from '../sim/constants';
 import { gustAt, rainAt } from '../sim/hazards';
 import type { World } from '../sim/world';
 
-export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery' | 'strike';
+export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery' | 'lob';
 
 /** Procedural sound: rotor hum, wind and rain beds plus short synthesized effects. No audio files. */
 export class GameAudio {
@@ -14,7 +14,7 @@ export class GameAudio {
   private rotorB: OscillatorNode | null = null;
   private windGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
-  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, rotors: 8 };
+  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0 };
 
   constructor(public muted: boolean) {}
 
@@ -107,7 +107,7 @@ export class GameAudio {
     this.rotorB.frequency.setTargetAtTime(base * 1.51, now, 0.05);
     this.rotorGain.gain.setTargetAtTime(alive ? 0.01 + c.throttle * 0.07 : 0, now, 0.08);
     const chute = w.phase === 'chute' ? 0.1 : 0;
-    this.windGain.gain.setTargetAtTime(alive ? chute + gust.blow * 0.25 + w.turbulence * 0.3 + Math.min(1, Math.abs(c.vx) / 70) * 0.06 : 0, now, 0.15);
+    this.windGain.gain.setTargetAtTime(alive ? chute + gust.blow * 0.25 + Math.min(1, Math.abs(c.vx) / 70) * 0.06 : 0, now, 0.15);
     this.rainGain.gain.setTargetAtTime(alive ? rain * 0.14 : 0, now, 0.3);
 
     // One-shot effects from state transitions.
@@ -118,7 +118,9 @@ export class GameAudio {
     const collected = w.science.targets.filter((t) => t.collected).length;
     if (collected > p.collected) this.sfx('collect');
     if (w.science.score > p.score) this.sfx('upload');
-    if (w.rotors < p.rotors) this.sfx('strike');
+    // A thump when a vent near you fires.
+    const shots = w.ventShots.reduce((a, b2) => a + b2, 0);
+    if (shots > p.shots && w.obstacles.vents.some((v) => Math.abs(v.x - c.x) < 260)) this.sfx('lob');
     const warn = gust.warn > 0;
     if (warn && !p.warn) this.sfx('warning');
     if (w.status === 'flying' && w.phase === 'flight' && w.battery < LOW_BATTERY && now > p.lowAt) {
@@ -129,13 +131,13 @@ export class GameAudio {
     p.phase = w.phase;
     p.collected = collected;
     p.score = w.science.score;
-    p.rotors = w.rotors;
+    p.shots = w.ventShots.reduce((a, b2) => a + b2, 0);
     p.warn = warn;
   }
 
   /** Forget the previous state, e.g. when a new world starts, so old values don't fire effects. */
   reset(): void {
-    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, rotors: 8 };
+    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0 };
   }
 
   sfx(name: Sfx): void {
@@ -168,9 +170,9 @@ export class GameAudio {
       case 'warning':
         [0, 0.14, 0.28].forEach((d) => this.tone(740, 0.08, 'square', 0.05, d));
         break;
-      case 'strike':
-        this.burst(0.35, 0.3, 1500);
-        this.tone(180, 0.25, 'sawtooth', 0.14, 0, 70);
+      case 'lob':
+        this.tone(120, 0.18, 'sine', 0.16, 0, 55);
+        this.burst(0.2, 0.12, 700);
         break;
       case 'lowbattery':
         this.tone(880, 0.1, 'square', 0.05);

@@ -1,12 +1,11 @@
 import { INSTRUMENTS } from '../content/instruments';
-import { squallState, warningsAhead } from '../sim/obstacles';
+import { warningsAhead } from '../sim/obstacles';
 import {
   BASE_RADIUS,
   LOW_BATTERY,
   MAX_IMPACT_SPEED,
   MAX_LAND_SLOPE,
   MIN_TAKEOFF_BATTERY,
-  TOTAL_ROTORS,
   PAD_BULLSEYE,
 } from '../sim/constants';
 import { dayNumber, phaseLabel } from '../sim/daynight';
@@ -38,7 +37,6 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
     ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
     ['SCORE', `${w.science.score}`],
     ['SLOPE', agl < 30 ? slope.toFixed(2) : '--'],
-    ...(w.difficulty.rotorsFatal < 99 ? [['ROTORS', `${w.rotors}/${TOTAL_ROTORS}`] as [string, string]] : []),
   ];
   ctx.fillStyle = 'rgba(20,10,0,0.55)';
   ctx.fillRect(u * 0.6, u * 0.6, u * 13, u * (lines.length * 1.35 + 1.9));
@@ -47,7 +45,6 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
     if (k === 'V/S' && risky) color = '#ff6a4a';
     if (k === 'BATT' && low) color = blink ? '#ff6a4a' : '#ffe2b0';
     if (k === 'SLOPE' && agl < 30 && Math.abs(slope) > MAX_LAND_SLOPE) color = '#ff6a4a';
-    if (k === 'ROTORS' && w.rotors < TOTAL_ROTORS) color = w.time - w.lastStrike < 1.5 && blink ? '#ffffff' : '#ff6a4a';
     ctx.fillStyle = color;
     ctx.fillText(`${k.padEnd(7)}${v}`, u, u * (1.9 + i * 1.35));
   });
@@ -144,25 +141,7 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
       ctx.fillStyle = z.kind === 'rain' ? 'rgba(110,160,255,0.45)' : 'rgba(230,170,90,0.4)';
       ctx.fillRect(at(a), ry - u * 0.9, at(b) - at(a), u * 1.8);
     }
-    // Obstacles: turbulence cells as grey bands, rock spires as red ticks.
-    for (const cell of w.obstacles.cells) {
-      const cx = cell.x + cell.drift * w.time;
-      const a = Math.max(lo, cx - cell.radius);
-      const b = Math.min(hi, cx + cell.radius);
-      if (b <= a) continue;
-      ctx.fillStyle = 'rgba(170,175,205,0.5)';
-      ctx.fillRect(at(a), ry - u * 0.5, at(b) - at(a), u * 1);
-    }
-    ctx.fillStyle = '#ff6a4a';
-    for (const sp of w.obstacles.spires) ctx.fillRect(at(sp.x) - 1, ry - u * 0.8, 2, u * 1.6);
-    // Squall fronts (moving orange bars) and cryo-vents (orange diamonds).
-    ctx.fillStyle = 'rgba(255,150,70,0.8)';
-    for (const sq of w.obstacles.squalls) {
-      const st = squallState(w, sq);
-      const a = Math.max(lo, st.x - sq.length / 2);
-      const b = Math.min(hi, st.x + sq.length / 2);
-      if (b > a) ctx.fillRect(at(a), ry - u * 0.7, Math.max(3, at(b) - at(a)), u * 1.4);
-    }
+    // Ice vents (orange diamonds) and the ice balls in play (white dots).
     ctx.fillStyle = '#ffb347';
     for (const v of w.obstacles.vents) {
       const vx = at(v.x);
@@ -173,6 +152,11 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
       ctx.lineTo(vx - u * 0.45, ry);
       ctx.closePath();
       ctx.fill();
+    }
+    ctx.fillStyle = '#e8f6ff';
+    for (const b of w.balls) {
+      if (b.delay > 0 || b.x < lo || b.x > hi) continue;
+      ctx.fillRect(at(b.x) - 2, ry - 2, 4, 4);
     }
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(at(0) - u * 0.4, ry - u * 0.4, u * 0.8, u * 0.8);
@@ -335,26 +319,16 @@ function drawHazardHud(ctx: CanvasRenderingContext2D, w: World, cw: number, u: n
   if (rainAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
   if (hazeAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
   if (w.phase === 'flight') {
-    if (w.turbulence > 0.15) rows.push(['#c9d0ff', 'TURBULENCE: fly out of it!']);
     const ahead = warningsAhead(w);
-    if (ahead.spire) {
-      const arrows = ahead.spire.dir > 0 ? '►►►' : '◄◄◄';
-      rows.push([ahead.spire.dist < 110 && blink ? '#ff4a2a' : '#ff9a6a', `ROCK SPIRE ${arrows} ${Math.round(ahead.spire.dist)} m: CLIMB`]);
-    }
-    if (ahead.squall) {
-      const arrows = ahead.squall.dir > 0 ? '►►►' : '◄◄◄';
-      const advice = ahead.squall.above ? 'ABOVE: STAY LOW' : 'BELOW: STAY HIGH';
-      rows.push([ahead.squall.dist < 120 && blink ? '#ff4a2a' : '#ffb347', `SQUALL ${arrows} ${Math.round(ahead.squall.dist)} m, ${advice}`]);
-    }
     if (ahead.vent) {
       const vt = ahead.vent;
-      if (vt.state === 'erupt') rows.push(['#ff4a2a', 'VENT ERUPTING!']);
-      else if (vt.state === 'warn') rows.push([blink ? '#ff4a2a' : '#ffb347', `VENT ERUPTS IN ${vt.eta.toFixed(1)} s: ${w.status === 'landed' ? 'TAKE OFF!' : 'KEEP CLEAR'}`]);
-      else if (vt.dist < 70) rows.push(['#ffb347', `CRYO-VENT ${Math.round(vt.dist)} m, erupts in ${Math.ceil(vt.eta)} s`]);
+      if (vt.state === 'warn') rows.push([blink ? '#ff4a2a' : '#ffb347', `ICE VENT FIRES IN ${vt.eta.toFixed(1)} s${w.status === 'landed' ? ': MOVE!' : ''}`]);
+      else if (vt.state === 'flash') rows.push(['#ff4a2a', 'ICE VENT FIRED!']);
+      else if (vt.dist < 90) rows.push(['#ffb347', `ICE VENT ${Math.round(vt.dist)} m`]);
     }
-    if (ahead.cell && w.turbulence <= 0.15) {
-      const kind = ahead.cell.lift < 0 ? 'DOWNDRAFT' : 'UPDRAFT';
-      rows.push(['#c9d0ff', `${kind} ${ahead.cell.dir > 0 ? '►►►' : '◄◄◄'} ${Math.round(ahead.cell.dist)} m: CHANGE ALTITUDE`]);
+    if (ahead.ball) {
+      const arrows = ahead.ball.dir > 0 ? '►►►' : '◄◄◄';
+      rows.push([ahead.ball.dist < 70 && blink ? '#ff4a2a' : '#e8f6ff', `ICE BALL ${arrows} ${Math.round(ahead.ball.dist)} m`]);
     }
   }
   ctx.textAlign = 'center';

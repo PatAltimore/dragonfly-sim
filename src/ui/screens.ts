@@ -186,20 +186,11 @@ export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
   stat('Max science', `${maxScience(level)} pts, farthest ${far} m out`);
   stat('Starts at', `${phaseLabel(level.clockOffset)}${level.intro ? ', with parachute descent' : ''}`);
   stat('Weather', weather.length ? weather.join(', ') : 'calm', weather.length ? GOLD : GREEN);
-  const { spires, cells } = world.obstacles;
-  const hazardous = spires.length + cells.length > 0;
+  const { vents } = world.obstacles;
   stat(
-    'Obstacles',
-    hazardous
-      ? `${spires.length} rock spires (up to ${Math.round(Math.max(...spires.map((sp) => sp.height)))} m), ${cells.length} turbulence cells`
-      : 'none',
-    hazardous ? world.difficulty.color : GREEN,
-  );
-  const { squalls, vents } = world.obstacles;
-  stat(
-    'Threats',
-    squalls.length + vents.length > 0 ? `${squalls.length} squall fronts, ${vents.length} cryo-vents (a hit costs a rotor)` : 'none',
-    squalls.length + vents.length > 0 ? world.difficulty.color : GREEN,
+    'Hazards',
+    vents.length > 0 ? `${vents.length} ice vents lobbing balls (any hit destroys you)` : 'none',
+    vents.length > 0 ? world.difficulty.color : GREEN,
   );
   stat('Par time', `${mmss(level.parTime)}    score x${world.difficulty.scoreMult}`);
 

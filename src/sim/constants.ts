@@ -32,9 +32,25 @@ export const MAX_SLIDE_SPEED = 14;
 export const MAX_LAND_TILT = 0.28;
 export const MAX_LAND_SLOPE = 0.35;
 
-/** The craft is an octocopter. Hits knock rotors out; a short grace period follows each hit. */
-export const TOTAL_ROTORS = 8;
-export const STRIKE_INVULN = 1.8;
+/**
+ * Methane ice balls lobbed by vents. Gravity here is arcade strength: Titan's real gravity would fling them far higher.
+ * Bounces keep some energy, then a ball settles into rolling. Gusts push balls in the air and on the ground.
+ */
+export const BALL_GRAVITY = 12;
+export const BALL_RESTITUTION = 0.58;
+/** Share of a ball's sideways speed kept at each bounce. */
+export const BALL_BOUNCE_KEEP = 0.88;
+/** Below this speed into the ground a ball stops bouncing and rolls. */
+export const BALL_REST_SPEED = 4;
+/** In the air a ball is pulled toward the wind speed at this rate (1/s); on the ground gusts push it along. */
+export const BALL_WIND_COUPLING = 0.5;
+export const BALL_GROUND_PUSH = 0.5;
+export const BALL_ROLL_DRAG = 0.5;
+/** Gust acceleration (m/s^2) to an equivalent wind speed (m/s). */
+export const WIND_SPEED_PER_ACCEL = 0.12;
+/** Balls break up before reaching the base: it stays safe. At most this many exist at once. */
+export const BALL_BASE_SHIELD = 70;
+export const BALL_LIMIT = 24;
 
 /** Fixed simulation step (s). */
 export const FIXED_DT = 1 / 60;

@@ -9,7 +9,6 @@ import {
   SPINUP_MAX_FALL,
   SPINUP_TIME,
 } from './constants';
-import { spireHit } from './obstacles';
 import type { Input, World } from './world';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -56,11 +55,6 @@ export function stepDescent(w: World, pilot: Input, dt: number): void {
 
   c.x += c.vx * dt;
   c.y += c.vy * dt;
-
-  if (spireHit(w)) {
-    crash(w, 'Hit a rock spire');
-    return;
-  }
 
   const ground = w.terrain.groundUnder(c.x);
   if (c.y - SKID_DROP <= ground) {

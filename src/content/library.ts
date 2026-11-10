@@ -79,7 +79,7 @@ export const LIBRARY: Entry[] = [
     title: 'Scouting the way',
     body: [
       'Dragonfly does not fly blind. By day its sensors and cameras scout new targets, and the craft waits until mission controllers approve new landing destinations. Safe, scientifically interesting places are chosen from the air before any hop.',
-      'Game note: the rock spires and turbulence cells on Medium and Hard are arcade inventions. They stand in for the terrain and weather hazards that mission planners work to avoid, and they make you change altitude the way a careful pilot would.',
+      'Game note: the ice vents on Medium and Hard are an arcade invention. They stand in for the terrain and weather hazards that mission planners work to avoid, and they make you watch the sky and pick your landing spots the way a careful pilot would.',
     ],
   },
   {
@@ -124,7 +124,6 @@ export const LIBRARY: Entry[] = [
     body: [
       'Titan\'s clouds are probably made of methane, ethane or other simple organic compounds, and they are scattered and variable. They usually cover about 1% of the disk, but outbursts have spread them to as much as 8%.',
       'Windblown particles leave streaks on the surface, some hundreds of kilometers long, and the dunes show that sand generally moves west to east.',
-      'Game note: the squall fronts on Medium and Hard are an arcade invention, inspired by Titan\'s changeable storm clouds.',
     ],
   },
   {
@@ -165,7 +164,7 @@ export const LIBRARY: Entry[] = [
     body: [
       'Cassini\'s radar found candidate cryovolcanic features: the mountains Doom Mons and Erebor Mons, the large depression Sotra Patera and the flow-like Mohini Fluctus. Whether they are really volcanic is still debated.',
       'Between 2005 and 2006 parts of Sotra Patera and Mohini Fluctus grew brighter while the plains around them did not, which may hint at activity. If such volcanoes exist they might erupt water mixed with ammonia.',
-      'Game note: the cryo-vents that erupt on a timer are an arcade invention. No one has seen a geyser on Titan.',
+      'Game note: the vents that lob "methane ice balls" are an arcade invention. No one has seen a geyser on Titan, and at 94 K methane is close to its melting point, so real ejecta would more likely be water ice, which is rock-hard at that temperature.',
     ],
   },
   {
@@ -201,7 +200,6 @@ export const LIBRARY: Entry[] = [
       'Dragonfly is an octocopter: eight rotors, each about 1.35 m across. The layout is redundant, so it can lose at least one rotor or motor and keep flying.',
       'It cruises at about 10 m/s (36 km/h) and can climb as high as about 4 km. Landing mass is around 875 kg. One flight can cover up to about 8 km.',
       'Game note: your craft is far faster than the real one. That is arcade license.',
-      'Because of the redundant layout, a strike in the game knocks out one rotor at a time instead of ending the run. The craft climbs slower, pushes less and burns more energy until the base repairs it.',
     ],
   },
   {

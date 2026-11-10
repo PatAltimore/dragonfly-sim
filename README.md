@@ -74,20 +74,16 @@ Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars 
 
 | | Easy | Medium | Hard |
 |---|---|---|---|
-| Rock spires (solid, 22 to 80 m tall) | none | about 2.5 per km | about 4.5 per km |
-| Turbulence cells (up and downdrafts) | none | about 0.8 per km | about 1.6 per km, drifting |
-| Squall fronts (patrol the high sky) | none | about 0.8 per km, 70 to 170 m up | about 1.6 per km, 55 to 200 m up, faster |
-| Cryo-vents (erupt on a timer, many on landing targets) | none | 11 to 15 s cycle | 8 to 11 s cycle, taller plumes |
-| Rotors you can lose before going down | n/a | 4 | 3 |
+| Ice vents (lob bouncing methane ice balls, many near landing targets) | none | a shot every 9 to 13 s | every 6.5 to 9 s, two balls each |
 | Weather, battery drain, terrain | baseline | tougher | much tougher |
 | Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
 | Score multiplier | x1 | x1.25 | x1.5 |
 
-**Rotor strikes.** Squall fronts and erupting vents knock out a rotor instead of ending the run: the craft keeps flying but climbs slower, pushes less and burns more energy. A flickering craft is briefly protected. Landing at the base repairs one rotor every 6 s (Medium) or 9 s (Hard). Too many lost rotors and the craft goes down. The real Dragonfly has eight rotors so it can survive losing at least one.
+**Ice balls destroy the craft.** There is no damage meter: touching an ice ball, in the air or on the ground, ends the run. Warnings on the HUD and the radar strip (white dots for balls) show what is near.
 
-**Landing away from the base is a gamble.** Vents sit right on many landing targets and a few more are scattered about. Each one glows and flashes for about two seconds, then erupts for about a second; a countdown shows on the HUD. An eruption under a landed craft throws it into the air and costs a rotor, so time your landing right after an eruption and take off when the vent starts to glow. The base is always safe.
+**Ice vents lob methane ice balls.** A crater glows and flashes for about 1.6 seconds, then fires a ball (two on Hard). Some shots are aimed roughly at where you are. Each ball picks its own style: a steep lob that goes almost straight up and drops near the vent, a mid-angle arc, or a low, fast, flatter parabola that skims the ground. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 16 to 20 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
 
-Spires, turbulence and squalls are what make you change altitude: you must climb over spires, and downdrafts push you toward the ground. Warnings appear on the HUD and the radar strip marks them. They are placed deterministically, never on the base or a target, and there is no ceiling, so there is always a way over. The numbers live in `src/content/difficulty.ts`. The spires, cells, squalls and vents are arcade inventions; the Mission File says which real Titan features inspired them.
+Vents are placed deterministically and never on the base or a target. The numbers live in `src/content/difficulty.ts`. The vents are an arcade invention; the Mission File says which real Titan features inspired them.
 
 ## The Mission File (education and science)
 
