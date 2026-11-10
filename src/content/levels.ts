@@ -30,7 +30,7 @@ export const LEVELS: Level[] = [
   {
     name: 'First Light',
     tagline: 'Land at Shangri-La and take the first samples',
-    briefing: ['Drop in by parachute, then land on the LZ.', 'Three nearby targets, calm weather.', 'Upload your data back at the LZ.'],
+    briefing: ['Drop in by parachute, then land on the LZ.', 'Three nearby targets, only light gusts.', 'Upload your data back at the LZ.'],
     fact: 'Dragonfly is a NASA New Frontiers mission: a nuclear-powered, eight-rotor lander that will fly across the surface of Saturn\'s moon Titan.',
     seed: 7,
     ridgeAmp: 0.3,

@@ -25,6 +25,9 @@ const weatherOn = (w: World): boolean => !w.intro || w.landing !== null;
 const VIEW_HEIGHT_M = 140;
 const VIEW_ZOOM_OUT_PER_M = 0.35;
 const VIEW_ZOOM_OUT_MAX_AGL = 250;
+/** Cap the canvas resolution so high-density phones don't pay for pixels nobody can see. */
+const MAX_DPR = 2;
+const FOG_LAYERS: [number, number][] = [[90, 0.3], [45, 0.3], [15, 0.25]];
 
 interface Canopy {
   x: number;
@@ -49,6 +52,8 @@ export class Renderer {
   private camY = 0;
   private lastTime = 0;
   private viewH = VIEW_HEIGHT_M;
+  /** Show the keyboard cheat-sheet along the bottom (hidden on touch devices). */
+  keyHints = true;
   private lastPhase = 'flight';
   private canopy: Canopy | null = null;
 
@@ -81,7 +86,7 @@ export class Renderer {
 
   draw(w: World, hud = true): void {
     const { canvas, ctx } = this;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     const cw = Math.floor(canvas.clientWidth * dpr);
     const ch = Math.floor(canvas.clientHeight * dpr);
     if (canvas.width !== cw || canvas.height !== ch) {
@@ -285,7 +290,7 @@ export class Renderer {
       const haze = hazeAt(w.level.zones, wx, w.time);
       if (haze < 0.02) continue;
       const gy = w.terrain.heightAt(wx);
-      for (const [height, alpha] of [[90, 0.3], [45, 0.3], [15, 0.25]]) {
+      for (const [height, alpha] of FOG_LAYERS) {
         ctx.fillStyle = `rgba(226,168,98,${(alpha * haze).toFixed(3)})`;
         const top = sy(gy + height);
         ctx.fillRect(px, Math.round(top), step, ch - Math.round(top));
@@ -635,7 +640,7 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.font = `${u * 0.9}px monospace`;
     ctx.fillStyle = 'rgba(255,226,176,0.7)';
-    ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro    Esc: pause', cw / 2, ch - u * 0.8);
+    if (this.keyHints) ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro    Esc: pause', cw / 2, ch - u * 0.8);
   }
 
   /** Target pointer, radar strip, work progress, event toasts and the sortie-complete panel. */

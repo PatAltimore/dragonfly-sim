@@ -1,6 +1,7 @@
 import { GameAudio } from './audio/audio';
 import { Game } from './game';
 import { Keyboard } from './input/keyboard';
+import { TouchControls } from './input/touch';
 import { Renderer } from './render2d/renderer';
 import { loadProgress } from './save/progress';
 
@@ -13,7 +14,7 @@ const unlockAudio = () => audio.unlock();
 window.addEventListener('keydown', unlockAudio);
 window.addEventListener('pointerdown', unlockAudio);
 
-const game = new Game(new Renderer(canvas), new Keyboard(window), audio, progress);
+const game = new Game(new Renderer(canvas), new Keyboard(window), new TouchControls(canvas), audio, progress);
 
 let last = performance.now();
 function frame(now: number): void {
