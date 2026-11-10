@@ -9,7 +9,7 @@ import type { SceneRenderer } from './scene-renderer';
 type View = '2d' | '3d';
 const VIEW_KEY = 'dragonfly-sim-view';
 
-/** `?view=3d` or `?view=2d` in the address picks the view and is remembered for next time. */
+/** 3D is the default. `?view=3d` or `?view=2d` in the address picks the view and is remembered for next time. */
 function preferredView(): View {
   try {
     const asked = new URLSearchParams(location.search).get('view');
@@ -17,9 +17,9 @@ function preferredView(): View {
       localStorage.setItem(VIEW_KEY, asked);
       return asked;
     }
-    return localStorage.getItem(VIEW_KEY) === '3d' ? '3d' : '2d';
+    return localStorage.getItem(VIEW_KEY) === '2d' ? '2d' : '3d';
   } catch {
-    return '2d';
+    return '3d';
   }
 }
 
@@ -57,6 +57,8 @@ async function main(): Promise<void> {
   };
 
   const game = new Game(renderer, new Keyboard(window), new TouchControls(canvas), audio, progress, view === '3d', toggleView);
+
+  document.getElementById('loading')?.remove();
 
   let last = performance.now();
   function frame(now: number): void {

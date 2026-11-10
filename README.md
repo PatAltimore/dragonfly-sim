@@ -29,6 +29,7 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | Skip the intro descent | X | |
 | Sound on / off | M | Sound button |
 | Switch 2D / 3D view | V | VIEW button on the menu |
+| Open the Mission File | L | MISSION FILE button (menu and pause) |
 
 On a touch screen the joystick floats: put a finger down anywhere and drag. The farther you push, the harder you steer.
 
@@ -43,14 +44,14 @@ npm run build      # typecheck and build into dist/
 npm run preview    # serve the production build
 ```
 
-TypeScript and Vite. The default view is plain Canvas 2D; the optional 3D view uses [Three.js](https://threejs.org/), which is loaded only when the 3D view is chosen. Audio is synthesized with WebAudio, so there are no asset files.
+TypeScript and Vite. The default view is 3D, drawn with [Three.js](https://threejs.org/); a plain Canvas 2D view is also available, and the 3D engine is downloaded only when the 3D view is used. Audio is synthesized with WebAudio, so there are no asset files.
 
 ### Layout
 
 ```
 src/
   sim/       deterministic game rules: flight model, terrain, energy, science, hazards, scoring
-  content/   data: instruments, sortie definitions, weather
+  content/   data: instruments, sortie definitions, weather, and the Mission File text
   render2d/  Canvas 2D renderer (reads sim state, never changes it)
   render3d/  Three.js renderer: the same side-on game drawn as a 3D scene
   input/     keyboard and touch input
@@ -62,9 +63,21 @@ src/
 
 The simulation never touches the DOM or the canvas, so renderers are interchangeable.
 
-### 3D view
+### 3D and 2D views
 
-Choose it with the VIEW button on the menu, the `V` key, or `?view=3d` in the address (`?view=2d` goes back). The choice is remembered. The gameplay is the same 2D simulation (the craft still flies in one plane); the terrain, sky, lighting, weather and craft are real 3D, seen from a slightly angled side camera.
+3D is the default. Switch with the VIEW button on the menu, the `V` key, or `?view=2d` / `?view=3d` in the address. The choice is remembered. The gameplay is the same 2D simulation (the craft still flies in one plane); the terrain, sky, lighting, weather and craft are real 3D, seen from a slightly angled side camera.
+
+## The Mission File (education and science)
+
+The menu and pause screen open the **Mission File**: 27 short pages on the Dragonfly mission and Titan, in six sections:
+
+- **Mission:** the big science question, timeline, team, the 105-minute autonomous landing, a day on Titan, and the public "Soar with Dragonfly" program.
+- **Titan:** size and gravity, the orange haze, methane weather, hydrocarbon seas, dunes of organic material, tholins, the possible hidden ocean, and the Huygens landing.
+- **Craft:** why a rotorcraft, the eight rotors, the nuclear battery, talking to Earth, and the drills.
+- **Tools:** DraMS, DraGNS, DraGMet and DragonCam, with how they map to the game's targets.
+- **Glossary** and **Sources.**
+
+Briefings also describe each sortie's instruments, collecting data shows a short science note, and every debrief ends with a "Did you know?" fact. All of it lives in `src/content/library.ts` and `src/content/instruments.ts`.
 
 ## Deploying to GitHub Pages
 

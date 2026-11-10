@@ -41,6 +41,8 @@ export interface Science {
   /** Short event message ("DATA UPLOADED +350") and when it stops showing. */
   toast: string;
   toastUntil: number;
+  /** A second, smaller line under the toast: a science note. */
+  toastNote: string;
   /** Sim time until which the first-sortie hint shows; 0 until the first takeoff. */
   hintUntil: number;
   complete: boolean;
@@ -66,6 +68,7 @@ export function createScience(terrain: Terrain, specs: TargetSpec[], hintUntil: 
     upload: 0,
     toast: '',
     toastUntil: 0,
+    toastNote: '',
     hintUntil,
     complete: false,
     completeTime: 0,
@@ -76,9 +79,10 @@ export function createScience(terrain: Terrain, specs: TargetSpec[], hintUntil: 
 
 export const cargoValue = (s: Science): number => s.cargo.reduce((sum, item) => sum + item.value, 0);
 
-function say(w: World, text: string): void {
+function say(w: World, text: string, note = ''): void {
   w.science.toast = text;
-  w.science.toastUntil = w.time + 3;
+  w.science.toastNote = note;
+  w.science.toastUntil = w.time + (note ? 4.5 : 3);
 }
 
 /** Collect, carry and bank science. Runs after the flight step. */
@@ -118,7 +122,8 @@ export function stepScience(w: World, dt: number): void {
       t.progress = 1;
       t.collected = true;
       s.cargo.push({ kind: t.kind, value: ins.value });
-      say(w, `${ins.label} DATA ACQUIRED: return to base to upload`);
+      const nth = s.targets.filter((o) => o.collected && o.kind === t.kind).length - 1;
+      say(w, `${ins.label} DATA ACQUIRED: return to base to upload`, ins.notes[nth % ins.notes.length]);
     }
   }
 

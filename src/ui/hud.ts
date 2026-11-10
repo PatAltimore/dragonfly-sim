@@ -196,6 +196,11 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
     ctx.font = `bold ${u * 1.5}px monospace`;
     ctx.fillStyle = '#8be07a';
     ctx.fillText(s.toast, cw / 2, ch * 0.22);
+    if (s.toastNote) {
+      ctx.font = `${u * 1.05}px monospace`;
+      ctx.fillStyle = '#ffe2b0';
+      ctx.fillText(s.toastNote, cw / 2, ch * 0.22 + u * 1.9);
+    }
   }
 
   if (s.complete) {

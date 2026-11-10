@@ -1,5 +1,6 @@
 import { INSTRUMENTS, type InstrumentId } from '../content/instruments';
 import { LEVELS, type Level } from '../content/levels';
+import { DID_YOU_KNOW } from '../content/library';
 import { isUnlocked, type Progress } from '../save/progress';
 import { phaseLabel } from '../sim/daynight';
 import type { RunResult } from '../sim/scoring';
@@ -20,23 +21,23 @@ export interface Hit {
   h: number;
 }
 
-const GOLD = '#ffd27a';
-const CREAM = '#ffe2b0';
-const GREEN = '#8be07a';
-const RED = '#ff6a4a';
-const DIM = 'rgba(255,226,176,0.45)';
+export const GOLD = '#ffd27a';
+export const CREAM = '#ffe2b0';
+export const GREEN = '#8be07a';
+export const RED = '#ff6a4a';
+export const DIM = 'rgba(255,226,176,0.45)';
 
-const unit = (s: Surface) => Math.max(10, Math.min(s.ch / 42, s.cw / 46));
+export const unit = (s: Surface) => Math.max(10, Math.min(s.ch / 42, s.cw / 46));
 
 const stars = (n: number): string => '★'.repeat(n) + '☆'.repeat(3 - n);
 
-function dim(s: Surface, alpha: number): void {
+export function dim(s: Surface, alpha: number): void {
   s.ctx.setTransform(1, 0, 0, 1, 0, 0);
   s.ctx.fillStyle = `rgba(12,6,0,${alpha})`;
   s.ctx.fillRect(0, 0, s.cw, s.ch);
 }
 
-function panel(s: Surface, x: number, y: number, w: number, h: number, border = GOLD): void {
+export function panel(s: Surface, x: number, y: number, w: number, h: number, border = GOLD): void {
   s.ctx.fillStyle = 'rgba(20,10,0,0.82)';
   s.ctx.fillRect(x, y, w, h);
   s.ctx.strokeStyle = border;
@@ -44,7 +45,7 @@ function panel(s: Surface, x: number, y: number, w: number, h: number, border = 
   s.ctx.strokeRect(x, y, w, h);
 }
 
-function text(s: Surface, str: string, x: number, y: number, size: number, color: string, align: CanvasTextAlign = 'center', bold = false): void {
+export function text(s: Surface, str: string, x: number, y: number, size: number, color: string, align: CanvasTextAlign = 'center', bold = false): void {
   s.ctx.font = `${bold ? 'bold ' : ''}${size}px monospace`;
   s.ctx.fillStyle = color;
   s.ctx.textAlign = align;
@@ -52,7 +53,7 @@ function text(s: Surface, str: string, x: number, y: number, size: number, color
 }
 
 /** Draw a button and return its hit rectangle. */
-function button(s: Surface, id: string, label: string, x: number, y: number, w: number, h: number, primary = false): Hit {
+export function button(s: Surface, id: string, label: string, x: number, y: number, w: number, h: number, primary = false): Hit {
   const { ctx } = s;
   ctx.fillStyle = primary ? 'rgba(255,210,122,0.28)' : 'rgba(255,210,122,0.1)';
   ctx.fillRect(x, y, w, h);
@@ -64,14 +65,14 @@ function button(s: Surface, id: string, label: string, x: number, y: number, w: 
 }
 
 /** Lay out a row of equal buttons centered at cx. */
-function buttonRow(s: Surface, items: { id: string; label: string; primary?: boolean }[], cx: number, y: number, u: number): Hit[] {
+export function buttonRow(s: Surface, items: { id: string; label: string; primary?: boolean }[], cx: number, y: number, u: number): Hit[] {
   const gap = u * 1.2;
   const w = Math.min(u * 12, (s.cw * 0.92 - (items.length - 1) * gap) / items.length);
   const total = items.length * w + (items.length - 1) * gap;
   return items.map((it, i) => button(s, it.id, it.label, cx - total / 2 + i * (w + gap), y, w, u * 3, it.primary));
 }
 
-function wrap(ctx: CanvasRenderingContext2D, str: string, maxWidth: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, str: string, maxWidth: number): string[] {
   const lines: string[] = [];
   let line = '';
   for (const word of str.split(' ')) {
@@ -125,7 +126,9 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
   });
   hits.push(button(s, 'sound', progress.muted ? 'SOUND OFF' : 'SOUND ON', s.cw - u * 9.6, u * 1, u * 8.6, u * 2.4));
   hits.push(button(s, 'view', view3d ? 'VIEW: 3D' : 'VIEW: 2D', u * 1, u * 1, u * 8.6, u * 2.4));
-  text(s, '↑/↓ or tap to choose    Enter or tap again to launch    M sound    V view', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
+  const fileW = Math.min(u * 32, s.cw * 0.9);
+  hits.push(button(s, 'library', 'MISSION FILE: Titan and the science (L)', s.cw / 2 - fileW / 2, top + rowH * LEVELS.length + u * 1.5, fileW, u * 2.6));
+  text(s, '↑/↓ or tap: choose   Enter: launch   M sound   V view   L file', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
   return hits;
 }
 
@@ -156,7 +159,7 @@ export function drawBriefing(s: Surface, level: Level, index: number): Hit[] {
   const stat = (label: string, value: string, color = CREAM) => {
     text(s, label, x + u * 2, row, u * 1.05, DIM, 'left');
     text(s, value, x + u * 12, row, u * 1.05, color, 'left');
-    row += u * 1.6;
+    row += u * 1.45;
   };
   stat('Targets', `${level.targets.length}: ${targets}`);
   stat('Max science', `${maxScience(level)} pts, farthest ${far} m out`);
@@ -165,23 +168,49 @@ export function drawBriefing(s: Surface, level: Level, index: number): Hit[] {
   stat('Par time', mmss(level.parTime));
 
   row += u * 0.6;
+  const lineH = u * 1.25;
+  const innerW = w - u * 5;
+  const bottom = y + h - u * 6;
+
+  // The science brief: this sortie's instruments, then a mission fact. Both are wrapped first so we know
+  // how much room they need and can drop the less important parts on short screens.
+  s.ctx.font = `${u * 0.95}px monospace`;
+  type BriefLine = { str: string; color: string; bold?: boolean; gap?: boolean };
+  const instrumentLines: BriefLine[] = [{ str: 'INSTRUMENTS ON THIS SORTIE', color: GOLD, bold: true }];
+  for (const k of Object.keys(counts) as InstrumentId[]) {
+    if (counts[k] === 0) continue;
+    const ins = INSTRUMENTS[k];
+    wrap(s.ctx, `${ins.label}: ${ins.role}`, innerW).forEach((l) => instrumentLines.push({ str: l, color: ins.color }));
+  }
+  const factLines: BriefLine[] = [{ str: 'MISSION FACT', color: GOLD, bold: true, gap: true }];
+  wrap(s.ctx, level.fact, innerW).forEach((l) => factLines.push({ str: l, color: CREAM }));
+  const heightOf = (lines: BriefLine[]) => u * 1.8 + lines.reduce((sum, b2) => sum + lineH + (b2.gap ? u * 0.5 : 0), 0);
+
   s.ctx.font = `${u * 1.05}px monospace`;
-  for (const b of level.briefing) {
-    for (const line of wrap(s.ctx, b, w - u * 6)) {
+  const bullets: string[] = [];
+  for (const b2 of level.briefing) bullets.push(...wrap(s.ctx, b2, w - u * 6));
+  const bulletsH = bullets.length * u * 1.3;
+
+  let brief = [...instrumentLines, ...factLines];
+  const roomForBullets = row + bulletsH + heightOf(brief) + u * 0.6 <= bottom;
+  if (!roomForBullets && row + heightOf(brief) > bottom) brief = instrumentLines;
+  if (roomForBullets) {
+    for (const line of bullets) {
       text(s, `• ${line}`, x + u * 2.4, row, u * 1.05, CREAM, 'left');
-      row += u * 1.4;
+      row += u * 1.3;
     }
   }
 
-  // Mission fact box above the buttons.
-  s.ctx.font = `${u * 0.95}px monospace`;
-  const lines = wrap(s.ctx, level.fact, w - u * 5);
-  const boxH = u * (2.8 + lines.length * 1.3);
-  const boxY = y + h - boxH - u * 6.2;
+  const boxH = heightOf(brief);
+  const boxY = bottom - boxH;
   s.ctx.fillStyle = 'rgba(255,210,122,0.1)';
   s.ctx.fillRect(x + u * 1.2, boxY, w - u * 2.4, boxH);
-  text(s, 'MISSION FACT', x + u * 2.2, boxY + u * 1.6, u * 0.95, GOLD, 'left', true);
-  lines.forEach((l, i) => text(s, l, x + u * 2.2, boxY + u * (3 + i * 1.3), u * 0.95, CREAM, 'left'));
+  let by = boxY + u * 1.6;
+  for (const b2 of brief) {
+    if (b2.gap) by += u * 0.5;
+    text(s, b2.str, x + u * 2.2, by, u * 0.95, b2.color, 'left', b2.bold);
+    by += lineH;
+  }
 
   return buttonRow(
     s,
@@ -199,7 +228,7 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.94, u * 40);
-  const h = u * (r.completed ? 25 : 20);
+  const h = u * (r.completed ? 31 : 24);
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h, r.completed ? GREEN : RED);
@@ -236,6 +265,15 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
         { id: 'menu', label: 'MENU (Esc)' },
         { id: 'primary', label: 'RETRY (Enter)', primary: true },
       ];
+  const fact = DID_YOU_KNOW[(index * 3 + (r.completed ? 1 : 0)) % DID_YOU_KNOW.length];
+  s.ctx.font = `${u * 0.95}px monospace`;
+  const factLines = wrap(s.ctx, fact, w - u * 6);
+  const factH = u * 2 + factLines.length * u * 1.2;
+  const factY = y + h - u * 5.4 - factH;
+  s.ctx.fillStyle = 'rgba(255,210,122,0.1)';
+  s.ctx.fillRect(x + u * 1.2, factY, w - u * 2.4, factH);
+  text(s, 'DID YOU KNOW?', x + u * 2.2, factY + u * 1.5, u * 0.95, GOLD, 'left', true);
+  factLines.forEach((l, i) => text(s, l, x + u * 2.2, factY + u * (2.9 + i * 1.2), u * 0.95, CREAM, 'left'));
   return buttonRow(s, items, s.cw / 2, y + h - u * 4.4, u);
 }
 
@@ -243,7 +281,7 @@ export function drawPause(s: Surface, muted: boolean): Hit[] {
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.9, u * 24);
-  const h = u * 21;
+  const h = u * 25;
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h);
@@ -255,5 +293,6 @@ export function drawPause(s: Surface, muted: boolean): Hit[] {
     button(s, 'restart', 'RESTART (R)', bx, y + u * 9.2, bw, u * 3),
     button(s, 'quit', 'QUIT TO MENU (Q)', bx, y + u * 12.8, bw, u * 3),
     button(s, 'sound', muted ? 'SOUND OFF (M)' : 'SOUND ON (M)', bx, y + u * 16.4, bw, u * 3),
+    button(s, 'library', 'MISSION FILE (L)', bx, y + u * 20, bw, u * 3),
   ];
 }

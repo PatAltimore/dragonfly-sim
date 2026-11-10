@@ -7,9 +7,11 @@ import { isUnlocked, recordResult, saveProgress, type Progress } from './save/pr
 import { FIXED_DT } from './sim/constants';
 import { evaluate, type RunResult } from './sim/scoring';
 import { createWorld, step, type World } from './sim/world';
+import { LIBRARY } from './content/library';
+import { drawLibrary, SECTION_START } from './ui/library';
 import { drawBriefing, drawDebrief, drawMenu, drawPause, type Hit } from './ui/screens';
 
-export type Screen = 'menu' | 'briefing' | 'play' | 'paused' | 'debrief';
+export type Screen = 'menu' | 'briefing' | 'play' | 'paused' | 'debrief' | 'library';
 
 /** Seconds the sortie keeps running after a crash or completion before the debrief appears. */
 const CRASH_DELAY = 1.4;
@@ -28,6 +30,8 @@ export class Game {
   private endTimer = 0;
   private acc = 0;
   private skipIntro = false;
+  private libraryPage = 0;
+  private libraryFrom: Screen = 'menu';
 
   constructor(
     private renderer: SceneRenderer,
@@ -74,6 +78,18 @@ export class Game {
     this.go('play');
   }
 
+  private openLibrary(from: Screen): void {
+    this.libraryFrom = from;
+    this.audio.sfx('select');
+    this.go('library');
+  }
+
+  private flipLibrary(delta: number): void {
+    const n = LIBRARY.length;
+    this.libraryPage = (this.libraryPage + delta + n) % n;
+    this.audio.sfx('select');
+  }
+
   private toMenu(): void {
     this.cursor = this.index;
     this.go('menu');
@@ -111,6 +127,7 @@ export class Game {
   private tap(id: string): void {
     if (id === 'sound') return this.toggleSound();
     if (id === 'view') return this.onToggleView();
+    if (id === 'library') return this.openLibrary(this.screen);
     switch (this.screen) {
       case 'menu': {
         const i = Number(id.split(':')[1]);
@@ -132,6 +149,15 @@ export class Game {
         if (id === 'resume') this.go('play');
         else if (id === 'restart') this.startPlay(this.skipIntro);
         else if (id === 'quit') this.toMenu();
+        break;
+      case 'library':
+        if (id === 'close') this.go(this.libraryFrom);
+        else if (id === 'prev') this.flipLibrary(-1);
+        else if (id === 'next') this.flipLibrary(1);
+        else if (id.startsWith('tab:')) {
+          this.libraryPage = SECTION_START[Number(id.slice(4))] ?? 0;
+          this.audio.sfx('select');
+        }
         break;
       case 'debrief':
         if (id === 'primary') this.debriefPrimary();
@@ -170,6 +196,9 @@ export class Game {
       case 'debrief':
         this.debrief();
         break;
+      case 'library':
+        this.library();
+        break;
     }
   }
 
@@ -183,6 +212,7 @@ export class Game {
       this.cursor++;
       this.audio.sfx('select');
     }
+    if (this.keyboard.consumePress('KeyL')) return this.openLibrary('menu');
     if (this.confirm() && isUnlocked(this.progress, this.cursor)) return this.openBriefing(this.cursor);
     this.renderer.draw(this.showBackdrop(this.cursor), false);
     this.arm(drawMenu(this.renderer.surface(), this.progress, this.cursor, this.view3d));
@@ -230,8 +260,18 @@ export class Game {
     if (this.pressed('Escape', 'KeyP')) return this.go('play');
     if (this.keyboard.consumePress('KeyR')) return this.startPlay(this.skipIntro);
     if (this.keyboard.consumePress('KeyQ')) return this.toMenu();
+    if (this.keyboard.consumePress('KeyL')) return this.openLibrary('paused');
     this.renderer.draw(this.world, true);
     this.arm(drawPause(this.renderer.surface(), this.progress.muted));
+    this.audio.update(null, false);
+  }
+
+  private library(): void {
+    if (this.pressed('ArrowLeft', 'KeyA')) this.flipLibrary(-1);
+    if (this.pressed('ArrowRight', 'KeyD')) this.flipLibrary(1);
+    if (this.pressed('Escape', 'Backspace', 'KeyL')) return this.go(this.libraryFrom);
+    this.renderer.draw(this.libraryFrom === 'paused' ? this.world : this.showBackdrop(this.cursor), false);
+    this.arm(drawLibrary(this.renderer.surface(), this.libraryPage));
     this.audio.update(null, false);
   }
 
