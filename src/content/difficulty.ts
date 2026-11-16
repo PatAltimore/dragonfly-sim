@@ -45,13 +45,21 @@ export interface DifficultySpec {
   ballLife: number;
   ballRadius: number;
   ballAim: number;
+
+  /** Gates: vertical gap between hill and cloud (m), spacing along the track (m), hill peak height (m),
+   * how far the hill height can change from one gate to the next (m), and how far the cloud bank bobs (m). */
+  gateGap: [number, number];
+  gateSpacing: [number, number];
+  gateHill: [number, number];
+  gateStep: number;
+  gateBob: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
   easy: {
     id: 'easy',
     label: 'EASY',
-    tagline: 'Open ground and fair weather. A good place to learn.',
+    tagline: 'Wide gates and fair weather. A good place to learn.',
     color: '#8be07a',
     drainMult: 1,
     gustStrength: 1,
@@ -73,11 +81,16 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     ballLife: 0,
     ballRadius: 0,
     ballAim: 0,
+    gateGap: [120, 150],
+    gateSpacing: [270, 350],
+    gateHill: [20, 85],
+    gateStep: 45,
+    gateBob: 0,
   },
   medium: {
     id: 'medium',
     label: 'MEDIUM',
-    tagline: 'Ice vents lob bouncing balls. Watch the sky, on the ground too.',
+    tagline: 'Narrower gates and ice vents that lob bouncing balls.',
     color: '#ffd27a',
     drainMult: 1.15,
     gustStrength: 1.25,
@@ -99,11 +112,16 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     ballLife: 16,
     ballRadius: 2,
     ballAim: 0.4,
+    gateGap: [90, 115],
+    gateSpacing: [230, 300],
+    gateHill: [25, 110],
+    gateStep: 60,
+    gateBob: 10,
   },
   hard: {
     id: 'hard',
     label: 'HARD',
-    tagline: 'More vents, double shots, harsh weather, tight landings.',
+    tagline: 'Tight gates, breathing clouds, double shots, harsh weather.',
     color: '#ff6a4a',
     drainMult: 1.3,
     gustStrength: 1.5,
@@ -125,6 +143,11 @@ export const DIFFICULTIES: Record<Difficulty, DifficultySpec> = {
     ballLife: 20,
     ballRadius: 2.3,
     ballAim: 0.6,
+    gateGap: [66, 86],
+    gateSpacing: [190, 250],
+    gateHill: [30, 130],
+    gateStep: 80,
+    gateBob: 20,
   },
 };
 

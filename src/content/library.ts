@@ -124,6 +124,7 @@ export const LIBRARY: Entry[] = [
     body: [
       'Titan\'s clouds are probably made of methane, ethane or other simple organic compounds, and they are scattered and variable. They usually cover about 1% of the disk, but outbursts have spread them to as much as 8%.',
       'Windblown particles leave streaks on the surface, some hundreds of kilometers long, and the dunes show that sand generally moves west to east.',
+      'Game note: the gates, a hill below and a methane cloud above, are an arcade invention. Titan’s real clouds are thin and far apart, and a rotorcraft would simply fly around them. Dragonfly’s real obstacles are slopes, rocks and dunes at its landing sites.',
     ],
   },
   {
@@ -191,6 +192,14 @@ export const LIBRARY: Entry[] = [
     body: [
       'Titan\'s low gravity and dense air make flying unusually easy: the air is about four times denser than Earth\'s and gravity is only 13.8% of Earth\'s, so flight takes roughly 40 times less power than on Earth.',
       'A flying lander can hop kilometers between very different sites instead of crawling like a rover. It would be only the second rotorcraft to fly on another world, after Ingenuity on Mars.',
+    ],
+  },
+  {
+    section: 'craft',
+    title: 'Flying it yourself',
+    body: [
+      'With flight assist off, the game flies like a lunar lander: up is thrust, and gravity always pulls the craft down. Hovering means holding about half throttle, and tilting trades some lift for sideways speed.',
+      'Game note: Titan’s real surface gravity is 1.352 m/s^2. The game uses about 12 times that so the fall is fast enough to be a challenge, and it makes the gusts gentler to compensate. Flight assist stands in for an autopilot: the real Dragonfly has to fly itself, because a pilot’s commands would arrive more than an hour late.',
     ],
   },
   {
@@ -314,4 +323,6 @@ export const DID_YOU_KNOW: string[] = [
   'You can put your name on a chip aboard Dragonfly: search "Soar with Dragonfly".',
   'Selk crater is about 90 km wide and young, and may hold both water ice and organic compounds.',
   'Dragonfly would be only the second rotorcraft to fly on another world, after Ingenuity.',
+  'Titan’s gravity is 1.352 m/s^2. The game’s lander mode uses about 12 times that to keep you busy.',
+  'Dragonfly flies itself between landing sites, because commands from Earth take over an hour to arrive.',
 ];

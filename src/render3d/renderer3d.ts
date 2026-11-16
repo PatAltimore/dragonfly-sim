@@ -13,6 +13,7 @@ import {
 import { daylight } from '../sim/daynight';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState, type Obstacles } from '../sim/obstacles';
+import { cloudBottom, gateFraming } from '../sim/gates';
 import { drawHud } from '../ui/hud';
 import type { Surface } from '../ui/screens';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
@@ -210,6 +211,8 @@ export class Renderer3D implements SceneRenderer {
   private targetRoot = new THREE.Group();
 
   private ventRoot = new THREE.Group();
+  private gateRoot = new THREE.Group();
+  private gateModels: { cloud: THREE.Group }[] = [];
   private obstaclesRef: Obstacles | null = null;
   private ventModels: { group: THREE.Group; ring: THREE.MeshBasicMaterial; puff: THREE.Mesh; puffMat: THREE.MeshBasicMaterial }[] = [];
   private ballRoot = new THREE.Group();
@@ -296,7 +299,7 @@ export class Renderer3D implements SceneRenderer {
     this.canopyLines = this.canopyGroup.children.find((o) => o instanceof THREE.LineSegments) as THREE.LineSegments;
     this.scene.add(this.canopyGroup);
 
-    this.scene.add(this.targetRoot, this.ventRoot, this.ballRoot);
+    this.scene.add(this.targetRoot, this.ventRoot, this.ballRoot, this.gateRoot);
     // A fixed pool of ice balls, shown and moved from the sim each frame.
     const ballGeo = new THREE.IcosahedronGeometry(1, 1);
     const ballMat = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#8fb8e0', emissiveIntensity: 0.9, flatShading: true, fog: false });
@@ -485,6 +488,47 @@ export class Renderer3D implements SceneRenderer {
     });
   }
 
+  /** Methane cloud banks over the gate hills. */
+  private buildGates(w: World): void {
+    const puffGeo = new THREE.IcosahedronGeometry(1, 2);
+    const puffMat = new THREE.MeshLambertMaterial({ color: '#fff3dc', emissive: '#e8c890', emissiveIntensity: 0.8, transparent: true, opacity: 0.93, fog: false });
+    w.obstacles.gates.forEach((g, gi) => {
+      const cloud = new THREE.Group();
+      const rnd = (k: number) => {
+        const s = Math.sin((gi + 1) * 91.7 + k * 12.9898) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      let k = 0;
+      // Layers of puffs: the lowest follows the curled underside, higher ones are narrower and fainter in mass.
+      for (let layer = 0; layer < 5; layer++) {
+        const half = g.cloudW * (1 - layer * 0.12);
+        for (let dx = -half; dx <= half; dx += 7) {
+          const u = Math.min(1, Math.abs(dx) / g.cloudW);
+          for (const z of [-12, -3, 7, 14]) {
+            if (rnd(k++) < 0.35 && layer > 0) continue;
+            const r = 6 + rnd(k++) * 5 + (layer === 0 ? 0 : 2);
+            const puff = new THREE.Mesh(puffGeo, puffMat);
+            puff.position.set(dx + (rnd(k++) - 0.5) * 4, u * u * 16 + r * 0.55 + layer * 16 + rnd(k++) * 4, z + (rnd(k++) - 0.5) * 5);
+            puff.scale.set(r * 1.25, r, r * 1.15);
+            cloud.add(puff);
+          }
+        }
+      }
+      cloud.position.set(g.x, cloudBottom(g, 0), 0);
+      this.gateRoot.add(cloud);
+      this.gateModels.push({ cloud });
+    });
+  }
+
+  private updateGates(w: World): void {
+    w.obstacles.gates.forEach((g, i) => {
+      const m = this.gateModels[i];
+      if (!m) return;
+      const bottom = cloudBottom(g, w.time);
+      m.cloud.position.set(g.x, bottom, 0);
+    });
+  }
+
   /** Position the pooled ice-ball meshes from the sim. Balls shrink away as they dissolve. */
   private updateBalls(w: World): void {
     const live = w.balls.filter((b) => b.delay <= 0);
@@ -510,12 +554,24 @@ export class Renderer3D implements SceneRenderer {
       });
     }
     this.ventModels = [];
+    for (const child of [...this.gateRoot.children]) {
+      this.gateRoot.remove(child);
+      child.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.geometry && mesh.geometry.type !== 'IcosahedronGeometry') mesh.geometry.dispose();
+        const mat = mesh.material as THREE.Material | undefined;
+        if (mat && !(mat instanceof THREE.MeshLambertMaterial)) mat.dispose();
+      });
+    }
+    this.gateModels = [];
     this.buildVents(w);
+    this.buildGates(w);
     this.obstaclesRef = w.obstacles;
   }
 
   private updateObstacles(w: World): void {
     this.updateVents(w);
+    this.updateGates(w);
     this.updateBalls(w);
   }
 
@@ -630,8 +686,10 @@ export class Renderer3D implements SceneRenderer {
 
     // Camera follows the craft with a little lead, as in the 2D view; distance sets how much of the world fits.
     this.viewH += (this.targetViewH(w) - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
-    const targetX = c.x + c.vx * 0.5;
-    const targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
+    const targetX = c.x + c.vx * 0.8;
+    let targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
+    const frame = gateFraming(w);
+    if (frame) targetY += (frame.y - targetY) * frame.k;
     const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;

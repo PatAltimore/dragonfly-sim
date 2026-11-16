@@ -24,6 +24,9 @@ function smoothstep(a: number, b: number, x: number): number {
 
 /** Dune-field heightfield, deterministic from a seed. y is up, in meters. */
 export class Terrain {
+  /** Hills raised on top of the dunes (used for gates): center, half-width, height. */
+  private bumps: { x: number; r: number; h: number }[] = [];
+
   constructor(
     readonly seed: number,
     /** Half-width of the flat base pad around x = 0. */
@@ -38,7 +41,17 @@ export class Terrain {
     // Steeper ridges farther from the base make for tricky landing spots.
     const ridges = 4 * this.ridgeAmp * noise(x / 18 + 300, s + 3) * smoothstep(150, 900, Math.abs(x));
     const flat = smoothstep(this.padRadius, this.padRadius + 40, Math.abs(x));
-    return (h + ridges) * flat;
+    let bump = 0;
+    for (const b of this.bumps) {
+      const u = Math.abs(x - b.x) / b.r;
+      if (u < 1) bump += b.h * (1 - u * u) * (1 - u * u);
+    }
+    return (h + ridges) * flat + bump;
+  }
+
+  /** Raise a smooth hill. */
+  addBump(x: number, r: number, h: number): void {
+    this.bumps.push({ x, r, h });
   }
 
   /** dh/dx by central difference. */

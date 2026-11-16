@@ -1,7 +1,11 @@
 import { INSTRUMENTS } from '../content/instruments';
 import { warningsAhead } from '../sim/obstacles';
+import { gapCenter } from '../sim/gates';
 import {
   BASE_RADIUS,
+  GATE_FLASH,
+  LANDER_G,
+  LANDER_THRUST,
   LOW_BATTERY,
   MAX_IMPACT_SPEED,
   MAX_LAND_SLOPE,
@@ -33,6 +37,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
     ['H/S', `${c.vx.toFixed(1)} m/s`],
     ['DIST', `${c.x.toFixed(0)} m`],
     ['SOL', `${dayNumber(clockOf(w))} ${phaseLabel(clockOf(w))}`],
+    ...(w.obstacles.gates.length > 0 ? ([['GATES', `${w.gatesPassed}/${w.obstacles.gates.length}`]] as [string, string][]) : []),
+    ...(w.assist ? [] : ([['THRUST', `${Math.round(c.throttle * 100)}%`]] as [string, string][])),
     ['BATT', `${Math.round(w.battery * 100)}%`],
     ['CARGO', `${w.science.cargo.length} (${cargoValue(w.science)})`],
     ['SCORE', `${w.science.score}`],
@@ -57,6 +63,21 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
   ctx.fillRect(u, by, bw * w.battery, u * 0.7);
   ctx.fillStyle = '#ffe2b0';
   ctx.fillRect(u + bw * MIN_TAKEOFF_BATTERY - 1, by - u * 0.15, 2, u * 1.0);
+  if (w.assist) {
+    ctx.fillStyle = '#8be07a';
+    ctx.font = `${u * 0.8}px monospace`;
+    ctx.fillText('ASSIST ON', u, by + u * 2);
+    ctx.font = `${u}px monospace`;
+  } else {
+    // Thrust bar: the notch is the throttle that holds a hover against gravity.
+    const ty = by + u * 1.3;
+    ctx.fillStyle = 'rgba(255,226,176,0.25)';
+    ctx.fillRect(u, ty, bw, u * 0.7);
+    ctx.fillStyle = c.throttle * LANDER_THRUST > LANDER_G ? '#8be07a' : '#ffd27a';
+    ctx.fillRect(u, ty, bw * c.throttle, u * 0.7);
+    ctx.fillStyle = '#ffe2b0';
+    ctx.fillRect(u + (bw * LANDER_G) / LANDER_THRUST - 1, ty - u * 0.15, 2, u * 1.0);
+  }
 
   // Status banner
   ctx.textAlign = 'center';
@@ -87,13 +108,30 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
   }
 
   drawIntroHud(ctx, w, cw, ch, u);
+  drawHint(ctx, w, cw, ch, u);
+  if (w.gateFlash && w.gateFlash.until > w.time && w.status !== 'crashed') {
+    const t = 1 - (w.gateFlash.until - w.time) / GATE_FLASH;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (1 - t) * 2.5);
+    ctx.textAlign = 'center';
+    ctx.font = `bold ${u * 2}px monospace`;
+    ctx.fillStyle = '#8be07a';
+    ctx.fillText('GATE CLEARED', cw / 2, ch * 0.42 - t * u * 3);
+    ctx.font = `${u * 1.3}px monospace`;
+    ctx.fillStyle = '#ffe2b0';
+    ctx.fillText(`${w.gatesPassed} of ${w.obstacles.gates.length}   +${w.gateFlash.points}`, cw / 2, ch * 0.42 + u * 1.8 - t * u * 3);
+    ctx.restore();
+  }
   drawHazardHud(ctx, w, cw, u);
   drawSortieHud(ctx, w, cw, ch, u);
 
   ctx.textAlign = 'center';
   ctx.font = `${u * 0.9}px monospace`;
   ctx.fillStyle = 'rgba(255,226,176,0.7)';
-  if (keyHints) ctx.fillText('Arrows/WASD: tilt + climb/descend    R: restart    X: skip intro    Esc: pause', cw / 2, ch - u * 0.8);
+  if (keyHints) {
+    const keys = w.assist ? 'Arrows/WASD: tilt + climb/descend' : '←/→ tilt    ↑ thrust (gravity pulls you down)';
+    ctx.fillText(`${keys}    R: restart    Esc: pause (F: flight assist)`, cw / 2, ch - u * 0.8);
+  }
 }
 
 /** Target pointer, radar strip, work progress, event toasts and the sortie-complete panel. */
@@ -140,6 +178,12 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
       if (b <= a) continue;
       ctx.fillStyle = z.kind === 'rain' ? 'rgba(110,160,255,0.45)' : 'rgba(230,170,90,0.4)';
       ctx.fillRect(at(a), ry - u * 0.9, at(b) - at(a), u * 1.8);
+    }
+    // Gates: a pale bar for each, dimmed once flown through.
+    for (const g of w.obstacles.gates) {
+      if (g.x < lo || g.x > hi) continue;
+      ctx.fillStyle = g.passed ? 'rgba(150,200,255,0.3)' : '#9fe0ff';
+      ctx.fillRect(at(g.x) - 1.5, ry - u * 0.8, 3, u * 1.6);
     }
     // Ice vents (orange diamonds) and the ice balls in play (white dots).
     ctx.fillStyle = '#ffb347';
@@ -247,6 +291,19 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
   }
 }
 
+/** The contextual tutorial prompt near the bottom of the screen. */
+function drawHint(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, u: number): void {
+  const hint = hintFor(w);
+  if (!hint) return;
+  ctx.textAlign = 'center';
+  ctx.font = `${u * 1.2}px monospace`;
+  const tw = Math.min(cw * 0.96, ctx.measureText(hint).width);
+  ctx.fillStyle = 'rgba(20,10,0,0.55)';
+  ctx.fillRect(cw / 2 - tw / 2 - u, ch - u * 6.6, tw + u * 2, u * 2.2);
+  ctx.fillStyle = '#ffe2b0';
+  ctx.fillText(hint, cw / 2, ch - u * 5.1, cw * 0.96);
+}
+
 /** Landing-zone pointer, tutorial hint, rotor spin-up bar and touchdown results. */
 function drawIntroHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, u: number): void {
   if (!w.intro) return;
@@ -259,16 +316,6 @@ function drawIntroHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: n
     ctx.font = `bold ${u * 1.4}px monospace`;
     ctx.fillStyle = '#ffd27a';
     ctx.fillText(label, cw / 2, u * 2.2);
-  }
-
-  const hint = hintFor(w);
-  if (hint) {
-    ctx.font = `${u * 1.2}px monospace`;
-    const tw = ctx.measureText(hint).width;
-    ctx.fillStyle = 'rgba(20,10,0,0.55)';
-    ctx.fillRect(cw / 2 - tw / 2 - u, ch - u * 6.6, tw + u * 2, u * 2.2);
-    ctx.fillStyle = '#ffe2b0';
-    ctx.fillText(hint, cw / 2, ch - u * 5.1);
   }
 
   if (w.phase === 'spinup') {
@@ -319,6 +366,17 @@ function drawHazardHud(ctx: CanvasRenderingContext2D, w: World, cw: number, u: n
   if (rainAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#9fc4ff', 'METHANE RAIN: slow, high drain']);
   if (hazeAt(w.level.zones, w.craft.x, w.time) > 0.15) rows.push(['#f0c070', 'HAZE: watch the slope readout']);
   if (w.phase === 'flight') {
+    let near: (typeof w.obstacles.gates)[number] | null = null;
+    for (const g of w.obstacles.gates) {
+      if (g.passed || Math.abs(g.x - w.craft.x) > 320) continue;
+      if (!near || Math.abs(g.x - w.craft.x) < Math.abs(near.x - w.craft.x)) near = g;
+    }
+    if (near) {
+      const dx = near.x - w.craft.x;
+      const dy = gapCenter(near, w.time) - w.craft.y;
+      const lift = Math.abs(dy) < 6 ? 'LEVEL' : dy > 0 ? `CLIMB ${Math.round(dy)}` : `DROP ${Math.round(-dy)}`;
+      rows.push(['#9fe0ff', `GATE ${dx > 0 ? '►' : '◄'} ${Math.round(Math.abs(dx))} m  ${lift}`]);
+    }
     const ahead = warningsAhead(w);
     if (ahead.vent) {
       const vt = ahead.vent;
@@ -334,6 +392,9 @@ function drawHazardHud(ctx: CanvasRenderingContext2D, w: World, cw: number, u: n
   ctx.textAlign = 'center';
   ctx.font = `bold ${u * 1.1}px monospace`;
   rows.forEach(([color, text], i) => {
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(20,10,0,0.5)';
+    ctx.fillRect(cw / 2 - tw / 2 - u * 0.6, u * 8.6 + i * u * 1.5 - u * 1.05, tw + u * 1.2, u * 1.4);
     ctx.fillStyle = color;
     ctx.fillText(text, cw / 2, u * 8.6 + i * u * 1.5);
   });

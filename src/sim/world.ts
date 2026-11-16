@@ -1,4 +1,5 @@
 import {
+  ASSIST_CLEARANCE,
   BASE_CHARGE_MULT,
   BASE_RADIUS,
   CHUTE_SPEED,
@@ -14,6 +15,12 @@ import {
   LAND_TAPER_MIN,
   LAND_TAPER_RATE,
   H_ACCEL,
+  LANDER_DRAG_Y,
+  LANDER_DRAG_X,
+  LANDER_G,
+  LANDER_WIND_SCALE,
+  LANDER_THROTTLE_RESPONSE,
+  LANDER_THRUST,
   MAX_IMPACT_SPEED,
   MAX_LAND_SLOPE,
   MAX_LAND_TILT,
@@ -42,6 +49,7 @@ import { applyDifficulty, DIFFICULTIES, type Difficulty, type DifficultySpec } f
 import { INSTRUMENTS } from '../content/instruments';
 import type { Level } from '../content/levels';
 import { initialShots, stepBalls, type Ball } from './balls';
+import { stepGates } from './gates';
 import { generateObstacles, type Obstacles } from './obstacles';
 import { createScience, stepScience, type Science } from './science';
 import { Terrain } from './terrain';
@@ -114,6 +122,12 @@ export interface World {
   /** Methane ice balls currently in play, and how many shots each vent has fired. */
   balls: Ball[];
   ventShots: number[];
+  /** Flight assist: automatic hover, soft landing and terrain clearance. Off means lander flight. */
+  assist: boolean;
+  /** Gates flown through so far. */
+  gatesPassed: number;
+  /** The last gate cleared: when the popup ends and the points it earned. */
+  gateFlash: { until: number; points: number } | null;
 }
 
 export const NO_INPUT: Input = { tilt: 0, climb: 0 };
@@ -124,7 +138,10 @@ export const weatherActive = (w: World): boolean => !w.intro || w.landing !== nu
 /** Seconds on the Titan day clock: sim time plus the level's starting offset. */
 export const clockOf = (w: World): number => w.time + w.level.clockOffset;
 
-export function createWorld(source: Level, opts: { skipIntro?: boolean; difficulty?: Difficulty } = {}): World {
+export function createWorld(
+  source: Level,
+  opts: { skipIntro?: boolean; difficulty?: Difficulty; assist?: boolean } = {},
+): World {
   const difficulty = DIFFICULTIES[opts.difficulty ?? 'easy'];
   const level = applyDifficulty(source, difficulty);
   const intro = level.intro && !opts.skipIntro;
@@ -132,6 +149,7 @@ export function createWorld(source: Level, opts: { skipIntro?: boolean; difficul
   const science = createScience(terrain, level.targets, intro ? 0 : 20);
   const obstacles = generateObstacles(
     level,
+    terrain,
     science.targets.map((t) => ({ x: t.x, landing: INSTRUMENTS[t.kind].landing })),
     difficulty,
   );
@@ -149,6 +167,9 @@ export function createWorld(source: Level, opts: { skipIntro?: boolean; difficul
     wind: 0,
     balls: [] as Ball[],
     ventShots: initialShots(obstacles.vents),
+    assist: opts.assist ?? false,
+    gatesPassed: 0,
+    gateFlash: null,
   };
   if (intro) {
     const y = terrain.groundUnder(START_X) + START_AGL + SKID_DROP;
@@ -184,7 +205,9 @@ export function isPowerLost(w: World): boolean {
 }
 
 export function step(w: World, pilot: Input, dt: number): void {
+  const prevX = w.craft.x;
   stepFlight(w, pilot, dt);
+  stepGates(w, prevX);
   stepBalls(w, dt);
   stepScience(w, dt);
 }
@@ -212,21 +235,41 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
   let input = pilot;
   if (isPowerLost(w)) input = { tilt: 0, climb: -1 };
   else if (w.status === 'landed' && w.battery < MIN_TAKEOFF_BATTERY) input = { tilt: pilot.tilt, climb: Math.min(0, pilot.climb) };
+  // Flight assist does the hovering and the soft touchdown. A dead battery always gets the automatic descent.
+  const assist = w.assist || isPowerLost(w);
 
   // Tilt follows the stick.
   const tiltTarget = clamp(input.tilt, -1, 1) * MAX_TILT;
   c.pitch += (tiltTarget - c.pitch) * (1 - Math.exp(-TILT_RESPONSE * dt));
   if (Math.abs(input.tilt) > 0.2) c.facing = input.tilt > 0 ? 1 : -1;
 
-  // Arcade vertical control: pilot commands a climb rate, craft tracks it directly (no gravity lag).
-  // Throttle just follows the command so the rotors look and sound right.
-  // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
-  const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
-  const vsTarget =
-    input.climb > 0 ? CLIMB_SPEED * (1 - Math.min(0.75, RAIN_CLIMB_PENALTY * wet)) * input.climb : descendSpeed * input.climb;
-  const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
-  const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
-  c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
+  let vsTarget = 0;
+  let thrust = 0;
+  if (assist) {
+    // Assisted vertical control: the pilot commands a climb rate and the craft tracks it directly.
+    // Descent rate tapers near the ground so holding "down" settles gently onto the surface.
+    const descendSpeed = Math.min(DESCEND_SPEED, LAND_TAPER_MIN + LAND_TAPER_RATE * altitudeAGL(w));
+    vsTarget =
+      input.climb > 0 ? CLIMB_SPEED * (1 - Math.min(0.75, RAIN_CLIMB_PENALTY * wet)) * input.climb : descendSpeed * input.climb;
+    if (w.status === 'flying' && input.climb >= 0) {
+      // Terrain clearance: look ahead along the flight path and climb over rising ground.
+      const ahead = Math.max(
+        w.terrain.groundUnder(c.x),
+        w.terrain.groundUnder(c.x + c.vx * 0.4),
+        w.terrain.groundUnder(c.x + c.vx * 0.8),
+      );
+      const need = ahead + SKID_DROP + ASSIST_CLEARANCE - c.y;
+      if (need > 0) vsTarget = Math.max(vsTarget, Math.min(CLIMB_SPEED, need * 3));
+    }
+    const hoverThrottle = GRAVITY / MAX_THRUST_ACCEL / Math.max(0.6, Math.cos(c.pitch));
+    const throttleTarget = w.status === 'landed' && input.climb <= 0 ? 0 : clamp(hoverThrottle + (vsTarget - c.vy) * 0.1, 0, 1);
+    c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-THROTTLE_RESPONSE * dt));
+  } else {
+    // Lander flight: up is thrust, along the body axis. Nothing holds the craft up; gravity always pulls.
+    const throttleTarget = clamp(input.climb, 0, 1);
+    c.throttle += (throttleTarget - c.throttle) * (1 - Math.exp(-LANDER_THROTTLE_RESPONSE * dt));
+    thrust = LANDER_THRUST * c.throttle * (1 - Math.min(0.5, RAIN_CLIMB_PENALTY * wet));
+  }
 
   const night = isNight(clockOf(w));
   if (w.status === 'landed') {
@@ -237,7 +280,10 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
     c.vx *= Math.exp(-4 * dt);
     c.y = w.terrain.groundUnder(c.x) + SKID_DROP;
     c.vy = 0;
-    if (input.climb > 0 && c.throttle * MAX_THRUST_ACCEL > GRAVITY * 1.05) {
+    const liftOff = assist
+      ? c.throttle * MAX_THRUST_ACCEL > GRAVITY * 1.05
+      : thrust * Math.cos(c.pitch) > LANDER_G * 1.05;
+    if (input.climb > 0 && liftOff) {
       w.status = 'flying';
       w.message = '';
       if (w.landing) w.landing.dismissed = true;
@@ -247,15 +293,21 @@ function stepFlight(w: World, pilot: Input, dt: number): void {
     }
   }
 
-  // Flight burns battery in proportion to climb and tilt effort; the MMRTG trickle barely offsets it.
-  const load =
-    HOVER_DRAIN + (CLIMB_DRAIN * Math.abs(c.vy)) / CLIMB_SPEED + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
+  // Flight burns battery in proportion to effort: climbing or thrust, and tilt. The MMRTG trickle barely offsets it.
+  const effort = assist ? Math.abs(c.vy) / CLIMB_SPEED : Math.max(0, c.throttle - 0.35) * 1.5;
+  const load = HOVER_DRAIN * (assist ? 1 : 0.45 + c.throttle * 1.1) + CLIMB_DRAIN * effort + (TILT_DRAIN * Math.abs(c.pitch)) / MAX_TILT;
   w.battery = Math.min(1, Math.max(0, w.battery + (FLIGHT_CHARGE - load * (night ? NIGHT_DRAIN_MULT : 1) * (1 + RAIN_DRAIN * wet) * w.level.drainMult) * dt));
   if (isPowerLost(w)) w.message = 'POWER LOST - emergency landing';
 
-  // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
-  c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind) * dt;
-  c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
+  if (assist) {
+    // Horizontal: tilt pushes, thick air pushes back, so speed settles quickly and stops quickly.
+    c.vx += (H_ACCEL * Math.sin(c.pitch) - DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind) * dt;
+    c.vy += (vsTarget - c.vy) * (1 - Math.exp(-VS_GAIN * dt));
+  } else {
+    // Thrust along the body axis: tilting trades lift for sideways push. Light drag stops it running away.
+    c.vx += (thrust * Math.sin(c.pitch) - LANDER_DRAG_X * (1 + RAIN_DRAG * wet) * c.vx + w.wind * LANDER_WIND_SCALE) * dt;
+    c.vy += (thrust * Math.cos(c.pitch) - LANDER_G - LANDER_DRAG_Y * c.vy) * dt;
+  }
   c.x += c.vx * dt;
   c.y += c.vy * dt;
 

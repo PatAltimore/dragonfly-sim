@@ -10,6 +10,8 @@ export interface Progress {
   /** Best total score, per difficulty and then per sortie. */
   best: Record<Difficulty, number[]>;
   muted: boolean;
+  /** Flight assist: automatic hover, soft landing and terrain clearance. Off is lander-style flight. */
+  assist: boolean;
   /** The difficulty chosen on the menu. */
   difficulty: Difficulty;
 }
@@ -20,6 +22,7 @@ const fresh = (): Progress => ({
   stars: { easy: blank(), medium: blank(), hard: blank() },
   best: { easy: blank(), medium: blank(), hard: blank() },
   muted: false,
+  assist: false,
   difficulty: 'easy',
 });
 
@@ -38,6 +41,7 @@ export function loadProgress(): Progress {
       stars?: unknown;
       best?: unknown;
       muted?: unknown;
+      assist?: unknown;
       difficulty?: unknown;
     };
     const p = fresh();
@@ -54,6 +58,7 @@ export function loadProgress(): Progress {
       }
     }
     p.muted = Boolean(data.muted);
+    p.assist = Boolean(data.assist);
     if (DIFFICULTY_ORDER.includes(data.difficulty as Difficulty)) p.difficulty = data.difficulty as Difficulty;
     return p;
   } catch {

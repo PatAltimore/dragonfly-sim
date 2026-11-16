@@ -8,13 +8,20 @@ Fan-made and unofficial: not affiliated with NASA or the Johns Hopkins Applied P
 ## How to play
 
 1. Pick a sortie. The first one opens with a parachute descent: steer to the landing zone (LZ), jettison the chute with up, and land.
-2. Fly to the colored target markers (the radar strip at the top shows them all):
+2. **Fly through the gates.** Between the targets, hills rise from the ground and banks of methane cloud hang above them, leaving a gap to fly through (the HUD says whether to climb or drop). Touching a hill or a cloud destroys the craft. Gates flown through score points.
+3. Fly to the colored target markers (the radar strip at the top shows them all):
    - **DraMS** (orange): land on the ring and drill for 4 seconds.
    - **DraGNS** (cyan): land on the ring and scan for 2 seconds.
    - **DragonCam** (violet): hover slowly inside the dashed box to take images.
-3. Land at the LZ to upload your cargo and bank the points. A crash destroys any unsent data.
-4. Watch the battery: flying drains it, landing recharges it (3x faster at the base), and an empty battery means an automatic emergency descent.
-5. Mind the weather: wind gusts (warned a couple of seconds ahead), methane rain (slower, thirstier) and haze (hides the ground). Ground that glows red is too steep to land on.
+4. Land at the LZ to upload your cargo and bank the points. A crash destroys any unsent data.
+5. Watch the battery: flying drains it, landing recharges it (3x faster at the base), and an empty battery means an automatic emergency descent.
+6. Mind the weather: wind gusts (warned a couple of seconds ahead), methane rain (slower, thirstier) and haze (hides the ground). Ground that glows red is too steep to land on.
+
+### Flying: lander mode and flight assist
+
+By default the craft flies like a lunar lander. **Up is thrust** along the craft's body and **gravity always pulls it down**: hold about half throttle to hover, add more to climb, let go to sink. Tilting sends the thrust sideways, so you trade lift for speed, and you stop by tilting the other way. Landing means cutting thrust in time to touch down level and slow.
+
+**Flight assist** (press F, or use the button on the menu, briefing or pause screen) is the automatic crash prevention. It hovers for you, makes Up and Down command a climb rate, slows the descent near the ground for a soft landing, and lifts the craft over rising ground ahead. It is off by default and the choice is remembered. A dead battery always gets an automatic emergency descent.
 
 Finish a sortie for one star, with extra stars for beating the par time and keeping battery in reserve. Clearing a sortie unlocks the next of eight.
 
@@ -23,7 +30,8 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | | Keyboard | Touch |
 |---|---|---|
 | Tilt left / right | Left / Right or A / D | Joystick: drag left / right |
-| Climb / descend | Up / Down or W / S | Joystick: drag up / down |
+| Thrust (assist off) or climb / descend (assist on) | Up / Down or W / S | Joystick: drag up / down |
+| Flight assist on / off | F | FLIGHT ASSIST button (menu, briefing, pause) |
 | Pause | Esc or P | II button |
 | Restart sortie | R | Pause menu |
 | Skip the intro descent | X | |
@@ -74,6 +82,7 @@ Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars 
 
 | | Easy | Medium | Hard |
 |---|---|---|---|
+| Gates: gap between hill and cloud | 120 to 150 m, steady | 90 to 115 m, clouds bob 10 m | 66 to 86 m, clouds bob 20 m |
 | Ice vents (lob bouncing methane ice balls, many near landing targets) | none | a shot every 9 to 13 s | every 6.5 to 9 s, two balls each |
 | Weather, battery drain, terrain | baseline | tougher | much tougher |
 | Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
@@ -83,11 +92,13 @@ Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars 
 
 **Ice vents lob methane ice balls.** A crater glows and flashes for about 1.6 seconds, then fires a ball (two on Hard). Some shots are aimed roughly at where you are. Each ball picks its own style: a steep lob that goes almost straight up and drops near the vent, a mid-angle arc, or a low, fast, flatter parabola that skims the ground. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 16 to 20 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
 
+**Gates** are generated for each sortie and difficulty: hills of varying height, each with a methane cloud bank over it. The gap drifts gradually from one gate to the next, and gates keep clear of the base, the targets and the opening descent. They are an arcade invention; the Mission File notes that real Titan clouds are sparse.
+
 Vents are placed deterministically and never on the base or a target. The numbers live in `src/content/difficulty.ts`. The vents are an arcade invention; the Mission File says which real Titan features inspired them.
 
 ## The Mission File (education and science)
 
-The menu and pause screen open the **Mission File**: 30 short pages on the Dragonfly mission and Titan, in six sections:
+The menu and pause screen open the **Mission File**: 31 short pages on the Dragonfly mission and Titan, in six sections:
 
 - **Mission:** the big science question, timeline, team, the 105-minute autonomous landing, a day on Titan, and the public "Soar with Dragonfly" program.
 - **Titan:** size and gravity, the orange haze, methane weather, hydrocarbon seas, dunes of organic material, tholins, the possible hidden ocean, and the Huygens landing.

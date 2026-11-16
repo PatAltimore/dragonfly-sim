@@ -2,7 +2,7 @@ import { LOW_BATTERY } from '../sim/constants';
 import { gustAt, rainAt } from '../sim/hazards';
 import type { World } from '../sim/world';
 
-export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery' | 'lob';
+export type Sfx = 'select' | 'confirm' | 'collect' | 'upload' | 'touchdown' | 'crash' | 'chute' | 'warning' | 'lowbattery' | 'lob' | 'gate';
 
 /** Procedural sound: rotor hum, wind and rain beds plus short synthesized effects. No audio files. */
 export class GameAudio {
@@ -14,7 +14,7 @@ export class GameAudio {
   private rotorB: OscillatorNode | null = null;
   private windGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
-  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0 };
+  private prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0, gates: 0 };
 
   constructor(public muted: boolean) {}
 
@@ -121,6 +121,7 @@ export class GameAudio {
     // A thump when a vent near you fires.
     const shots = w.ventShots.reduce((a, b2) => a + b2, 0);
     if (shots > p.shots && w.obstacles.vents.some((v) => Math.abs(v.x - c.x) < 260)) this.sfx('lob');
+    if (w.gatesPassed > p.gates) this.sfx('gate');
     const warn = gust.warn > 0;
     if (warn && !p.warn) this.sfx('warning');
     if (w.status === 'flying' && w.phase === 'flight' && w.battery < LOW_BATTERY && now > p.lowAt) {
@@ -131,13 +132,14 @@ export class GameAudio {
     p.phase = w.phase;
     p.collected = collected;
     p.score = w.science.score;
+    p.gates = w.gatesPassed;
     p.shots = w.ventShots.reduce((a, b2) => a + b2, 0);
     p.warn = warn;
   }
 
   /** Forget the previous state, e.g. when a new world starts, so old values don't fire effects. */
   reset(): void {
-    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0 };
+    this.prev = { status: '', phase: '', collected: 0, score: 0, warn: false, lowAt: 0, shots: 0, gates: 0 };
   }
 
   sfx(name: Sfx): void {
@@ -173,6 +175,9 @@ export class GameAudio {
       case 'lob':
         this.tone(120, 0.18, 'sine', 0.16, 0, 55);
         this.burst(0.2, 0.12, 700);
+        break;
+      case 'gate':
+        [784, 1175].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.08, i * 0.06));
         break;
       case 'lowbattery':
         this.tone(880, 0.1, 'square', 0.05);

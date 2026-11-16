@@ -52,6 +52,34 @@ export const WIND_SPEED_PER_ACCEL = 0.12;
 export const BALL_BASE_SHIELD = 70;
 export const BALL_LIMIT = 24;
 
+/**
+ * Lander flight (flight assist off): up is thrust along the craft's body axis and gravity pulls the
+ * craft down. Gravity is arcade strength, much higher than Titan's real 1.352 m/s^2, so the craft
+ * falls fast enough to be a challenge. Full thrust is about twice gravity.
+ */
+export const LANDER_G = 16;
+export const LANDER_THRUST = 34;
+export const LANDER_DRAG_X = 0.45;
+export const LANDER_DRAG_Y = 0.12;
+/** Gust accelerations are tuned for the heavily damped assisted model; lander flight feels them at this fraction. */
+export const LANDER_WIND_SCALE = 0.09;
+export const LANDER_THROTTLE_RESPONSE = 7;
+/** Intro descent for lander flight: the chute is released higher, and the rotors need more room to catch the fall. */
+export const LANDER_AUTO_RELEASE_AGL = 320;
+export const LANDER_MIN_RECOVERY_AGL = 70;
+export const LANDER_SPINUP_MAX_FALL = 48;
+/** Flight assist keeps this much clearance above terrain ahead unless the pilot is descending (m). */
+export const ASSIST_CLEARANCE = 6;
+
+/** Gates: hill below, methane cloud above. Clearances from the base and from targets (m), cloud depth (m), craft radius (m). */
+export const GATE_BASE_CLEAR = 190;
+export const GATE_TARGET_CLEAR = 85;
+export const GATE_CLOUD_DEPTH = 240;
+export const CRAFT_RADIUS = 1.8;
+export const GATE_POINTS = 25;
+/** How long the "gate cleared" popup shows (s). */
+export const GATE_FLASH = 1.6;
+
 /** Fixed simulation step (s). */
 export const FIXED_DT = 1 / 60;
 

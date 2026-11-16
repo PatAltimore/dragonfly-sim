@@ -1,5 +1,8 @@
 import {
   AUTO_RELEASE_AGL,
+  LANDER_AUTO_RELEASE_AGL,
+  LANDER_MIN_RECOVERY_AGL,
+  LANDER_SPINUP_MAX_FALL,
   CHUTE_SPEED,
   CHUTE_STEER_SPEED,
   CHUTE_WIND,
@@ -40,7 +43,7 @@ export function stepDescent(w: World, pilot: Input, dt: number): void {
     // leans the craft the same way it leans in powered flight. Eased so it swings rather than snaps.
     const swing = 0.07 * Math.sin(w.time * 1.7) + tilt * 0.2;
     c.pitch += (swing - c.pitch) * (1 - Math.exp(-5 * dt));
-    if (pilot.climb > 0 || agl <= AUTO_RELEASE_AGL) {
+    if (pilot.climb > 0 || agl <= (w.assist ? AUTO_RELEASE_AGL : LANDER_AUTO_RELEASE_AGL)) {
       w.phase = 'spinup';
       w.spin = 0;
       w.message = 'Chute away: spinning up rotors';
@@ -48,7 +51,7 @@ export function stepDescent(w: World, pilot: Input, dt: number): void {
   } else {
     w.spin = Math.min(1, w.spin + dt / SPINUP_TIME);
     c.vx += (tilt * CHUTE_STEER_SPEED * 0.5 - c.vx) * k;
-    c.vy = Math.max(-SPINUP_MAX_FALL, c.vy - SPINUP_GRAVITY * dt);
+    c.vy = Math.max(-(w.assist ? SPINUP_MAX_FALL : LANDER_SPINUP_MAX_FALL), c.vy - SPINUP_GRAVITY * dt);
     c.pitch += (tilt * 0.15 - c.pitch) * (1 - Math.exp(-6 * dt));
     c.throttle = w.spin * 0.5;
   }
@@ -62,7 +65,7 @@ export function stepDescent(w: World, pilot: Input, dt: number): void {
     return;
   }
   if (w.phase === 'spinup' && w.spin >= 1) {
-    if (c.y - SKID_DROP - ground < MIN_RECOVERY_AGL) {
+    if (c.y - SKID_DROP - ground < (w.assist ? MIN_RECOVERY_AGL : LANDER_MIN_RECOVERY_AGL)) {
       crash(w, 'Rotors spun up too low to recover');
       return;
     }

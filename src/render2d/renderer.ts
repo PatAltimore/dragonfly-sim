@@ -12,6 +12,8 @@ import { daylight } from '../sim/daynight';
 import { drawHud } from '../ui/hud';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState } from '../sim/obstacles';
+import { cloudBottom, cloudUnderside, gateFraming } from '../sim/gates';
+import { GATE_CLOUD_DEPTH } from '../sim/constants';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
 
 /** Visible vertical span of the world in meters, widened with altitude so the ground stays in sight. */
@@ -94,8 +96,10 @@ export class Renderer {
 
     // Camera follows the craft with a little lead in the direction of travel.
     const c = w.craft;
-    const targetX = c.x + c.vx * 0.5;
-    const targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
+    const targetX = c.x + c.vx * 0.8;
+    let targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
+    const frame = gateFraming(w);
+    if (frame) targetY += (frame.y - targetY) * frame.k;
     const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;
@@ -108,6 +112,7 @@ export class Renderer {
     this.drawFarDunes(cw, ch, scale);
     this.drawTerrain(w, cw, ch, scale, sx, sy);
     this.drawBase(w, scale, sx, sy);
+    this.drawGates(w, cw, scale, sx, sy);
     this.drawTargets(w, scale, sx, sy);
     this.drawVents(w, cw, scale, sx, sy);
     this.drawBalls(w, cw, scale, sx, sy);
@@ -119,6 +124,42 @@ export class Renderer {
     this.drawWeatherFx(w, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
     if (hud) drawHud(ctx, w, cw, ch, this.keyHints);
+  }
+
+  /** Gates: a methane cloud bank over a hill, . */
+  private drawGates(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
+    const { ctx } = this;
+    for (const g of w.obstacles.gates) {
+      if (Math.abs(g.x - this.camX) > cw / 2 / scale + g.cloudW + 20) continue;
+      const bottom = cloudBottom(g, w.time);
+      // The cloud body: flat-topped, curled underside, fading upward.
+      const top = bottom + GATE_CLOUD_DEPTH;
+      ctx.beginPath();
+      const step = 4;
+      for (let dx = -g.cloudW; dx <= g.cloudW; dx += step) {
+        const y = cloudUnderside(g, w.time, dx);
+        if (dx === -g.cloudW) ctx.moveTo(sx(g.x + dx), sy(y));
+        else ctx.lineTo(sx(g.x + dx), sy(y));
+      }
+      ctx.lineTo(sx(g.x + g.cloudW * 0.85), sy(top));
+      ctx.lineTo(sx(g.x - g.cloudW * 0.85), sy(top));
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, sy(bottom), 0, sy(top));
+      grad.addColorStop(0, 'rgba(244,226,190,0.96)');
+      grad.addColorStop(0.5, 'rgba(236,206,160,0.8)');
+      grad.addColorStop(1, 'rgba(236,206,160,0.25)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // Puffs along the underside, so it reads as cloud and not as a slab.
+      ctx.fillStyle = 'rgba(250,236,208,0.95)';
+      for (let dx = -g.cloudW; dx <= g.cloudW; dx += 9) {
+        const y = cloudUnderside(g, w.time, dx);
+        const rr = (4 + ((Math.abs(Math.round(dx / 9) * 7) % 5) * 0.9)) * scale;
+        ctx.beginPath();
+        ctx.arc(sx(g.x + dx), sy(y) - rr * 0.35, rr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   /** Ice vents: a dark crater that glows, then flashes as it lobs a ball. */

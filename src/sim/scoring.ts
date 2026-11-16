@@ -1,3 +1,4 @@
+import { GATE_POINTS } from './constants';
 import type { World } from './world';
 
 export interface RunResult {
@@ -21,6 +22,10 @@ export interface RunResult {
   difficulty: string;
   difficultyMult: number;
   difficultyBonus: number;
+  /** Gates flown through, how many there were, and the points for them. */
+  gates: number;
+  gatesTotal: number;
+  gateBonus: number;
 }
 
 /** Bonus points needed on top of completing the sortie for the second and third star. */
@@ -40,7 +45,8 @@ export function evaluate(w: World): RunResult {
   const batteryBonus = completed ? Math.round(battery * 200) : 0;
   const bonus = timeBonus + batteryBonus;
   const stars = !completed ? 0 : bonus >= STAR3_BONUS ? 3 : bonus >= STAR2_BONUS ? 2 : 1;
-  const subtotal = s.score + bonus;
+  const gateBonus = w.gatesPassed * GATE_POINTS;
+  const subtotal = s.score + bonus + gateBonus;
   const mult = w.difficulty.scoreMult;
   const total = completed ? Math.round(subtotal * mult) : subtotal;
   return {
@@ -58,5 +64,8 @@ export function evaluate(w: World): RunResult {
     difficulty: w.difficulty.label,
     difficultyMult: mult,
     difficultyBonus: total - subtotal,
+    gates: w.gatesPassed,
+    gatesTotal: w.obstacles.gates.length,
+    gateBonus,
   };
 }

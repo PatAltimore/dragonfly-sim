@@ -44,7 +44,7 @@ export class Game {
     private view3d: boolean,
     private onToggleView: () => void,
   ) {
-    this.world = createWorld(LEVELS[0], { skipIntro: true, difficulty: progress.difficulty });
+    this.world = createWorld(LEVELS[0], { skipIntro: true, difficulty: progress.difficulty, assist: progress.assist });
     this.backdropDifficulty = progress.difficulty;
     this.backdrop = this.world;
     this.renderer.resetCamera(this.backdrop);
@@ -63,7 +63,7 @@ export class Game {
   /** Show an idle view of a sortie's terrain and time of day behind the menus. */
   private showBackdrop(index: number): World {
     if (this.backdropIndex !== index || this.backdropDifficulty !== this.progress.difficulty) {
-      this.backdrop = createWorld(LEVELS[index], { skipIntro: true, difficulty: this.progress.difficulty });
+      this.backdrop = createWorld(LEVELS[index], { skipIntro: true, difficulty: this.progress.difficulty, assist: this.progress.assist });
       this.backdropIndex = index;
       this.backdropDifficulty = this.progress.difficulty;
       this.renderer.resetCamera(this.backdrop);
@@ -73,7 +73,7 @@ export class Game {
 
   private startPlay(skipIntro: boolean): void {
     this.skipIntro = skipIntro;
-    this.world = createWorld(LEVELS[this.index], { skipIntro, difficulty: this.progress.difficulty });
+    this.world = createWorld(LEVELS[this.index], { skipIntro, difficulty: this.progress.difficulty, assist: this.progress.assist });
     this.renderer.resetCamera(this.world);
     this.audio.reset();
     this.acc = 0;
@@ -114,6 +114,14 @@ export class Game {
     this.audio.sfx('select');
   }
 
+  /** Flight assist on or off. Remembered; takes effect at once, even in the middle of a sortie. */
+  private toggleAssist(): void {
+    this.progress.assist = !this.progress.assist;
+    this.world.assist = this.progress.assist;
+    saveProgress(this.progress);
+    this.audio.sfx('select');
+  }
+
   private toggleSound(): void {
     this.progress.muted = this.audio.toggleMute();
     saveProgress(this.progress);
@@ -140,6 +148,7 @@ export class Game {
   private tap(id: string): void {
     if (id === 'sound') return this.toggleSound();
     if (id === 'view') return this.onToggleView();
+    if (id === 'assist') return this.toggleAssist();
     if (id === 'library') return this.openLibrary(this.screen);
     switch (this.screen) {
       case 'menu': {
@@ -193,6 +202,7 @@ export class Game {
     this.renderer.keyHints = !this.touch.enabled;
     if (this.keyboard.consumePress('KeyM')) this.toggleSound();
     if (this.keyboard.consumePress('KeyV')) return this.onToggleView();
+    if (this.screen !== 'library' && this.screen !== 'debrief' && this.keyboard.consumePress('KeyF')) this.toggleAssist();
 
     switch (this.screen) {
       case 'menu':
@@ -243,7 +253,7 @@ export class Game {
     }
     if (this.pressed('Escape', 'Backspace')) return this.toMenu();
     this.renderer.draw(this.showBackdrop(this.index), false);
-    this.arm(drawBriefing(this.renderer.surface(), this.showBackdrop(this.index), this.index));
+    this.arm(drawBriefing(this.renderer.surface(), this.showBackdrop(this.index), this.index, this.progress.assist));
     this.audio.update(null, false);
   }
 
@@ -279,7 +289,7 @@ export class Game {
     if (this.keyboard.consumePress('KeyQ')) return this.toMenu();
     if (this.keyboard.consumePress('KeyL')) return this.openLibrary('paused');
     this.renderer.draw(this.world, true);
-    this.arm(drawPause(this.renderer.surface(), this.progress.muted));
+    this.arm(drawPause(this.renderer.surface(), this.progress.muted, this.progress.assist));
     this.audio.update(null, false);
   }
 

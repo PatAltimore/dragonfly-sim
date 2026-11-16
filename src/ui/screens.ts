@@ -146,13 +146,24 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
   });
   hits.push(button(s, 'sound', progress.muted ? 'SOUND OFF' : 'SOUND ON', s.cw - u * 9.6, u * 1, u * 8.6, u * 2.4));
   hits.push(button(s, 'view', view3d ? 'VIEW: 3D' : 'VIEW: 2D', u * 1, u * 1, u * 8.6, u * 2.4));
-  const fileW = Math.min(u * 32, s.cw * 0.9);
-  hits.push(button(s, 'library', 'MISSION FILE: Titan and the science (L)', s.cw / 2 - fileW / 2, top + rowH * LEVELS.length + u * 1.5, fileW, u * 2.6));
-  text(s, '↑/↓ sortie   ←/→ difficulty   Enter launch   M sound   V view   L file', s.cw / 2, s.ch - u * 1.2, u * 0.95, CREAM);
+  const rowW = Math.min(u * 50, s.cw * 0.94);
+  const by = top + rowH * LEVELS.length + u * 1.5;
+  const fileW = rowW * 0.56;
+  hits.push(button(s, 'library', 'MISSION FILE (L)', s.cw / 2 - rowW / 2, by, fileW, u * 2.6));
+  hits.push(button(s, 'assist', progress.assist ? 'FLIGHT ASSIST: ON (F)' : 'FLIGHT ASSIST: OFF (F)', s.cw / 2 - rowW / 2 + fileW + u * 0.8, by, rowW - fileW - u * 0.8, u * 2.6, progress.assist));
+  // The explanation and key list only appear where there is room for them below the buttons.
+  const noteY = by + u * 4.2;
+  const keysY = s.ch - u * 1.2;
+  if (noteY < keysY - u * 1.5) {
+    text(s, progress.assist ? 'Assist: auto-hover and soft landings' : 'No assist: Up is thrust, gravity pulls you down', s.cw / 2, noteY, u * 0.9, DIM);
+  }
+  if (by + u * 3.4 < keysY - u * 0.8) {
+    text(s, '↑/↓ sortie   ←/→ difficulty   Enter launch   F assist   M sound   V view   L file', s.cw / 2, keysY, u * 0.95, CREAM);
+  }
   return hits;
 }
 
-export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
+export function drawBriefing(s: Surface, world: World, index: number, assist: boolean): Hit[] {
   const level = world.level;
   dim(s, 0.7);
   const u = unit(s);
@@ -192,6 +203,9 @@ export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
     vents.length > 0 ? `${vents.length} ice vents lobbing balls (any hit destroys you)` : 'none',
     vents.length > 0 ? world.difficulty.color : GREEN,
   );
+  const gates = world.obstacles.gates;
+  stat('Gates', gates.length > 0 ? `${gates.length} hill and methane cloud gates: fly through the gaps` : 'none', gates.length > 0 ? CREAM : GREEN);
+  stat('Flight', assist ? 'assist on: auto-hover and soft landings' : 'lander: Up is thrust, gravity pulls', assist ? GREEN : GOLD);
   stat('Par time', `${mmss(level.parTime)}    score x${world.difficulty.scoreMult}`);
 
   row += u * 0.6;
@@ -230,19 +244,23 @@ export function drawBriefing(s: Surface, world: World, index: number): Hit[] {
 
   const boxH = heightOf(brief);
   const boxY = bottom - boxH;
-  s.ctx.fillStyle = 'rgba(255,210,122,0.1)';
-  s.ctx.fillRect(x + u * 1.2, boxY, w - u * 2.4, boxH);
-  let by = boxY + u * 1.6;
-  for (const b2 of brief) {
-    if (b2.gap) by += u * 0.5;
-    text(s, b2.str, x + u * 2.2, by, u * 0.95, b2.color, 'left', b2.bold);
-    by += lineH;
+  // On a very short screen the science brief would sit on top of the stats, so it is left out.
+  if (boxY >= row - u * 0.2) {
+    s.ctx.fillStyle = 'rgba(255,210,122,0.1)';
+    s.ctx.fillRect(x + u * 1.2, boxY, w - u * 2.4, boxH);
+    let by = boxY + u * 1.6;
+    for (const b2 of brief) {
+      if (b2.gap) by += u * 0.5;
+      text(s, b2.str, x + u * 2.2, by, u * 0.95, b2.color, 'left', b2.bold);
+      by += lineH;
+    }
   }
 
   return buttonRow(
     s,
     [
       { id: 'back', label: 'BACK (Esc)' },
+      { id: 'assist', label: assist ? 'ASSIST: ON (F)' : 'ASSIST: OFF (F)' },
       { id: 'launch', label: 'LAUNCH (Enter)', primary: true },
     ],
     s.cw / 2,
@@ -255,7 +273,7 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.94, u * 40);
-  const h = u * (r.completed ? 33 : 24);
+  const h = u * (r.completed ? 35 : 26);
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h, r.completed ? GREEN : RED);
@@ -274,6 +292,7 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
     line('Science uploaded', `${r.science}`);
     line(`Time ${mmss(r.time)} (par ${mmss(level.parTime)})`, `+${r.timeBonus}`);
     line(`Battery ${Math.round(r.battery * 100)}%`, `+${r.batteryBonus}`);
+    if (r.gatesTotal > 0) line(`Gates ${r.gates} of ${r.gatesTotal}`, `+${r.gateBonus}`);
     if (r.difficultyMult !== 1) line(`${r.difficulty} difficulty x${r.difficultyMult}`, `+${r.difficultyBonus}`, GREEN);
     row += u * 0.3;
     line('TOTAL', `${r.total}`, GOLD);
@@ -281,6 +300,7 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   } else {
     line('Cause', r.reason || 'Abandoned');
     line('Science banked', `${r.science}`);
+    if (r.gatesTotal > 0) line('Gates flown', `${r.gates} of ${r.gatesTotal}`);
     if (r.lost > 0) line('Unsent data lost', `${r.lost}`, RED);
   }
   const items = r.completed
@@ -305,11 +325,11 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   return buttonRow(s, items, s.cw / 2, y + h - u * 4.4, u);
 }
 
-export function drawPause(s: Surface, muted: boolean): Hit[] {
+export function drawPause(s: Surface, muted: boolean, assist: boolean): Hit[] {
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.9, u * 24);
-  const h = u * 25;
+  const h = u * 29;
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h);
@@ -322,5 +342,6 @@ export function drawPause(s: Surface, muted: boolean): Hit[] {
     button(s, 'quit', 'QUIT TO MENU (Q)', bx, y + u * 12.8, bw, u * 3),
     button(s, 'sound', muted ? 'SOUND OFF (M)' : 'SOUND ON (M)', bx, y + u * 16.4, bw, u * 3),
     button(s, 'library', 'MISSION FILE (L)', bx, y + u * 20, bw, u * 3),
+    button(s, 'assist', assist ? 'FLIGHT ASSIST: ON (F)' : 'FLIGHT ASSIST: OFF (F)', bx, y + u * 23.6, bw, u * 3),
   ];
 }

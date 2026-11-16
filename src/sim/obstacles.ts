@@ -1,5 +1,7 @@
 import type { DifficultySpec } from '../content/difficulty';
 import type { Level } from '../content/levels';
+import { generateGates, type Gate } from './gates';
+import type { Terrain } from './terrain';
 import type { World } from './world';
 
 /** An ice vent: a crater that lobs methane ice balls on a timer. Landing anywhere near one is a gamble. */
@@ -12,9 +14,8 @@ export interface Vent {
 
 export interface Obstacles {
   vents: Vent[];
+  gates: Gate[];
 }
-
-export const NO_OBSTACLES: Obstacles = { vents: [] };
 
 /** Seconds a vent glows before a shot, and how long its muzzle flash lasts. */
 export const VENT_WARN = 1.6;
@@ -40,11 +41,14 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
  */
 export function generateObstacles(
   level: Level,
+  terrain: Terrain,
   targets: { x: number; landing: boolean }[],
   spec: DifficultySpec,
 ): Obstacles {
-  if (spec.ventsPerKm + spec.ventTargetChance === 0) return NO_OBSTACLES;
   const targetXs = targets.map((t) => t.x);
+  const gates = generateGates(level, terrain, targetXs, spec);
+  if (spec.ventsPerKm + spec.ventTargetChance === 0) return { vents: [], gates };
+  const nearGate = (x: number) => gates.some((g) => Math.abs(g.x - x) < g.hillR + 15);
   const xs = [0, ...targetXs];
   const lo = Math.min(...xs) - 250;
   const hi = Math.max(...xs) + 250;
@@ -61,7 +65,7 @@ export function generateObstacles(
   for (const t of targets) {
     if (!t.landing || rand() >= spec.ventTargetChance) continue;
     const x = t.x + (rand() < 0.5 ? -1 : 1) * lerp(25, 50, rand());
-    if (Math.abs(x) >= 150) vents.push(newVent(x));
+    if (Math.abs(x) >= 150 && !nearGate(x)) vents.push(newVent(x));
   }
   // A few more are scattered about.
   const wantExtra = Math.round(spec.ventsPerKm * km);
@@ -69,12 +73,12 @@ export function generateObstacles(
     const x = lerp(lo, hi, rand());
     if (Math.abs(x) < 140) continue;
     if (targetXs.some((t) => Math.abs(t - x) < 30)) continue;
-    if (vents.some((v) => Math.abs(v.x - x) < 40)) continue;
+    if (vents.some((v) => Math.abs(v.x - x) < 40) || nearGate(x)) continue;
     vents.push(newVent(x));
     added++;
   }
   vents.sort((a, b) => a.x - b.x);
-  return { vents };
+  return { vents, gates };
 }
 
 export interface VentState {

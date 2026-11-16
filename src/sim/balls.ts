@@ -8,13 +8,11 @@ import {
   BALL_RESTITUTION,
   BALL_ROLL_DRAG,
   BALL_WIND_COUPLING,
+  CRAFT_RADIUS,
   WIND_SPEED_PER_ACCEL,
 } from './constants';
 import type { Vent } from './obstacles';
 import type { World } from './world';
-
-/** Craft radius used when testing against balls (m). */
-const CRAFT_RADIUS = 1.8;
 
 /**
  * A methane ice ball lobbed by a vent. It flies on a ballistic arc, bounces on the terrain, settles
