@@ -10,6 +10,7 @@ import { evaluate, type RunResult } from './sim/scoring';
 import { createWorld, step, type World } from './sim/world';
 import { LIBRARY } from './content/library';
 import { drawLibrary, SECTION_START } from './ui/library';
+import { missionLogHit, resetMissionLog, toggleMissionLog } from './ui/missionlog';
 import { drawBriefing, drawDebrief, drawMenu, drawPause, type Hit } from './ui/screens';
 
 export type Screen = 'menu' | 'briefing' | 'play' | 'paused' | 'debrief' | 'library';
@@ -48,6 +49,8 @@ export class Game {
     this.backdropDifficulty = progress.difficulty;
     this.backdrop = this.world;
     this.renderer.resetCamera(this.backdrop);
+    this.touch.logHit = missionLogHit;
+    this.touch.onLogTap = toggleMissionLog;
     this.touch.onPause = () => {
       if (this.screen === 'play') this.go('paused');
     };
@@ -76,6 +79,7 @@ export class Game {
     this.world = createWorld(LEVELS[this.index], { skipIntro, difficulty: this.progress.difficulty, assist: this.progress.assist });
     this.renderer.resetCamera(this.world);
     this.audio.reset();
+    resetMissionLog();
     this.acc = 0;
     this.endTimer = 0;
     this.result = null;
@@ -270,6 +274,7 @@ export class Game {
     const kb = this.keyboard;
     if (kb.consumePress('KeyR')) return this.startPlay(this.skipIntro);
     if (kb.consumePress('KeyX')) return this.startPlay(true);
+    if (kb.consumePress('KeyK')) toggleMissionLog();
     if (this.pressed('Escape', 'KeyP')) return this.go('paused');
 
     this.acc += dt;

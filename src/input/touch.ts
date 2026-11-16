@@ -29,6 +29,9 @@ export class TouchControls {
   playing = false;
   regions: Region[] = [];
   onPause: () => void = () => {};
+  /** Lets the mission log card claim taps on its header, and what to do with one. */
+  logHit: (x: number, y: number) => boolean = () => false;
+  onLogTap: () => void = () => {};
   private stickId: number | null = null;
   /** Once the player has used the stick, stop drawing the idle hint of it. */
   private used = false;
@@ -72,6 +75,10 @@ export class TouchControls {
     if (e.pointerType === 'touch') this.enabled = true;
     const p = this.point(e);
     if (this.playing) {
+      if (this.logHit(p.x, p.y)) {
+        this.onLogTap();
+        return;
+      }
       if (!this.enabled) return;
       const b = this.pauseButton();
       if (Math.hypot(p.x - b.cx, p.y - b.cy) <= b.r * 1.4) {

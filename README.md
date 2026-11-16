@@ -39,6 +39,7 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | Change difficulty (on the menu) | Left / Right | Easy / Medium / Hard buttons |
 | Switch 2D / 3D view | V | VIEW button on the menu |
 | Open the Mission File | L | MISSION FILE button (menu and pause) |
+| Fold or unfold the mission log card | K | Tap its header |
 
 On a touch screen the joystick floats: put a finger down anywhere and drag. The farther you push, the harder you steer.
 
@@ -105,6 +106,10 @@ The menu and pause screen open the **Mission File**: 31 short pages on the Drago
 - **Craft:** why a rotorcraft, the eight rotors, the nuclear battery, talking to Earth, and the drills.
 - **Tools:** DraMS, DraGNS, DraGMet and DragonCam, with how they map to the game's targets.
 - **Glossary** and **Sources.**
+
+During a sortie, a **mission log** card in the corner shows the Mission File page for whatever you are meeting: a vent or ice ball, a gate, a target, a gust, rain, haze, night or a low battery. When nothing special is happening it rotates through the whole file. Fold it with K or by tapping its header.
+
+A **touchdown meter** appears below 70 m: the bar fills as you sink and turns green, yellow or red depending on whether the impact would be safe, marginal or a crash.
 
 Most pages end with links to read more (NASA, the mission site, Wikipedia): tap one, or press 1, 2 or 3. They open in a new tab.
 

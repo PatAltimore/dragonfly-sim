@@ -14,9 +14,13 @@ import {
 } from '../sim/constants';
 import { dayNumber, phaseLabel } from '../sim/daynight';
 import { hintFor } from './hints';
+import { drawMissionLog } from './missionlog';
 import { gustAt, hazeAt, rainAt, zoneCenter } from '../sim/hazards';
 import { cargoValue } from '../sim/science';
 import { altitudeAGL, clockOf, isPowerLost, weatherActive, type World } from '../sim/world';
+
+/** The touchdown meter appears below this altitude (m). */
+const METER_AGL = 70;
 
 /** The flight HUD, drawn onto a 2D canvas over whichever renderer shows the world. */
 export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, keyHints: boolean): void {
@@ -109,6 +113,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
 
   drawIntroHud(ctx, w, cw, ch, u);
   drawHint(ctx, w, cw, ch, u);
+  drawTouchdownMeter(ctx, w, cw, ch, u);
+  drawMissionLog(ctx, w, cw, ch, u, keyHints);
   if (w.gateFlash && w.gateFlash.until > w.time && w.status !== 'crashed') {
     const t = 1 - (w.gateFlash.until - w.time) / GATE_FLASH;
     ctx.save();
@@ -130,7 +136,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
   ctx.fillStyle = 'rgba(255,226,176,0.7)';
   if (keyHints) {
     const keys = w.assist ? 'Arrows/WASD: tilt + climb/descend' : '←/→ tilt    ↑ thrust (gravity pulls you down)';
-    ctx.fillText(`${keys}    R: restart    Esc: pause (F: flight assist)`, cw / 2, ch - u * 0.8);
+    ctx.fillText(`${keys}    R: restart    K: mission log    Esc: pause (F: flight assist)`, cw / 2, ch - u * 0.8);
   }
 }
 
@@ -289,6 +295,54 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
     ctx.fillStyle = '#ffd27a';
     ctx.fillText('Press R to fly again', cw / 2, y + u * 11.4);
   }
+}
+
+/** Vertical speed gauge that appears near the ground: green means a safe touchdown, yellow is marginal, red would crash. */
+function drawTouchdownMeter(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, u: number): void {
+  const c = w.craft;
+  const agl = altitudeAGL(w);
+  if (w.phase !== 'flight' || w.status !== 'flying' || agl > METER_AGL) return;
+  const tol = w.difficulty.landingTol;
+  const limit = MAX_IMPACT_SPEED * tol;
+  const sink = Math.max(0, -c.vy);
+  // How hard the craft would hit the surface, along its normal: this is what the crash check uses.
+  const slope = w.terrain.slopeAt(c.x);
+  const norm = Math.hypot(slope, 1);
+  const impact = Math.max(0, -(c.vx * (-slope / norm) + c.vy * (1 / norm)));
+  const ratio = Math.max(sink, impact) / limit;
+  const color = ratio <= 0.6 ? '#8be07a' : ratio <= 1 ? '#ffd24a' : '#ff4a2a';
+  const blink = Math.floor(w.time * 6) % 2 === 0;
+
+  const bw = u * 1.6;
+  const bh = u * 12;
+  const x = cw - u * 3.2;
+  const top = ch - u * 8 - bh;
+  const full = limit * 2;
+  const zone = (from: number, to: number, c2: string) => {
+    ctx.fillStyle = c2;
+    ctx.fillRect(x, top + (from / full) * bh, bw, ((to - from) / full) * bh);
+  };
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,10,0,0.55)';
+  ctx.fillRect(x - u * 0.8, top - u * 2.6, bw + u * 1.6, bh + u * 5.2);
+  zone(0, limit * 0.6, 'rgba(139,224,122,0.3)');
+  zone(limit * 0.6, limit, 'rgba(255,210,74,0.3)');
+  zone(limit, full, 'rgba(255,74,42,0.3)');
+  // The fill grows downward with sink rate, like the craft dropping.
+  const fill = Math.min(1, sink / full) * bh;
+  ctx.fillStyle = ratio > 1 && agl < 12 && !blink ? '#ffffff' : color;
+  ctx.fillRect(x, top, bw, fill);
+  // Limit tick.
+  ctx.fillStyle = '#ffe2b0';
+  ctx.fillRect(x - u * 0.3, top + bh / 2 - 1, bw + u * 0.6, 2);
+  ctx.textAlign = 'center';
+  ctx.font = `${u * 0.8}px monospace`;
+  ctx.fillStyle = '#ffe2b0';
+  ctx.fillText('SINK', x + bw / 2, top - u * 0.9);
+  ctx.font = `bold ${u}px monospace`;
+  ctx.fillStyle = color;
+  ctx.fillText(c.vy >= 0 ? `+${c.vy.toFixed(1)}` : c.vy.toFixed(1), x + bw / 2, top + bh + u * 1.6);
+  ctx.restore();
 }
 
 /** The contextual tutorial prompt near the bottom of the screen. */
