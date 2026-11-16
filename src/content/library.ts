@@ -17,12 +17,19 @@ export const SECTIONS: { id: SectionId; label: string }[] = [
 /** Small diagrams drawn above a page's text. */
 export type VisualKind = 'compare' | 'atmosphere' | 'tsol' | 'descent';
 
+export interface Link {
+  label: string;
+  url: string;
+}
+
 export interface Entry {
   section: SectionId;
   title: string;
   /** Paragraphs. Keep each page short enough to fit on a phone screen. */
   body: string[];
   visual?: VisualKind;
+  /** Where to read more: opened in a new tab. */
+  links?: Link[];
   /** Accent color for the title (instrument pages use the instrument's game color). */
   accent?: string;
 }
@@ -165,7 +172,7 @@ export const LIBRARY: Entry[] = [
     body: [
       'Cassini\'s radar found candidate cryovolcanic features: the mountains Doom Mons and Erebor Mons, the large depression Sotra Patera and the flow-like Mohini Fluctus. Whether they are really volcanic is still debated.',
       'Between 2005 and 2006 parts of Sotra Patera and Mohini Fluctus grew brighter while the plains around them did not, which may hint at activity. If such volcanoes exist they might erupt water mixed with ammonia.',
-      'Game note: the vents that lob "methane ice balls" are an arcade invention. No one has seen a geyser on Titan, and at 94 K methane is close to its melting point, so real ejecta would more likely be water ice, which is rock-hard at that temperature.',
+      'Game note: the vents that lob "ice balls" are an arcade invention. No one has seen a geyser on Titan. If cryovolcanoes exist they would erupt water mixed with ammonia, which freezes rock-hard at about 94 K, so ice balls that bounce and roll are a fair stand-in for the ejecta.',
     ],
   },
   {
@@ -308,6 +315,52 @@ export const LIBRARY: Entry[] = [
     ],
   },
 ];
+
+const SITE: Link = { label: 'Dragonfly mission site (JHU APL)', url: 'https://dragonfly.jhuapl.edu/' };
+const NASA: Link = { label: 'NASA: Dragonfly mission', url: 'https://science.nasa.gov/mission/dragonfly/' };
+const WIKI_DRAGONFLY: Link = { label: 'Wikipedia: Dragonfly (Titan space probe)', url: 'https://en.wikipedia.org/wiki/Dragonfly_(Titan_space_probe)' };
+const NASA_TITAN: Link = { label: 'NASA: Titan', url: 'https://science.nasa.gov/saturn/moons/titan/' };
+const WIKI_TITAN: Link = { label: 'Wikipedia: Titan (moon)', url: 'https://en.wikipedia.org/wiki/Titan_(moon)' };
+
+/** Further reading for each page, by title. Pages not listed here have no links. */
+const LINKS: Record<string, Link[]> = {
+  'The big question': [SITE, NASA],
+  Timeline: [NASA, WIKI_DRAGONFLY],
+  'The team': [SITE, NASA],
+  'Landing: 105 minutes, alone': [WIKI_DRAGONFLY, SITE],
+  'A day on Titan': [WIKI_TITAN, NASA_TITAN],
+  'Scouting the way': [WIKI_DRAGONFLY, SITE],
+  'Soar with Dragonfly': [SITE],
+  'Meet Titan': [NASA_TITAN, WIKI_TITAN],
+  'An orange haze': [NASA_TITAN, WIKI_TITAN],
+  'Methane weather': [NASA_TITAN, WIKI_TITAN],
+  'Clouds and storms': [NASA_TITAN, WIKI_TITAN],
+  'Seas of methane': [{ label: 'Wikipedia: Lakes of Titan', url: 'https://en.wikipedia.org/wiki/Lakes_of_Titan' }, NASA_TITAN],
+  'Dunes of organics': [WIKI_TITAN, NASA_TITAN],
+  Tholins: [{ label: 'Wikipedia: Tholin', url: 'https://en.wikipedia.org/wiki/Tholin' }],
+  'A hidden ocean?': [NASA_TITAN, WIKI_TITAN],
+  'Ice volcanoes?': [{ label: 'Wikipedia: Cryovolcano', url: 'https://en.wikipedia.org/wiki/Cryovolcano' }, WIKI_TITAN],
+  'Early Earth, deep frozen': [NASA_TITAN, WIKI_TITAN],
+  'Huygens, 2005': [
+    { label: 'Wikipedia: Huygens (spacecraft)', url: 'https://en.wikipedia.org/wiki/Huygens_(spacecraft)' },
+    { label: 'Wikipedia: Selk (crater)', url: 'https://en.wikipedia.org/wiki/Selk_(crater)' },
+  ],
+  'Why a rotorcraft?': [{ label: 'Wikipedia: Ingenuity (helicopter)', url: 'https://en.wikipedia.org/wiki/Ingenuity_(helicopter)' }, WIKI_DRAGONFLY],
+  'Flying it yourself': [WIKI_DRAGONFLY, SITE],
+  'Eight rotors': [WIKI_DRAGONFLY, SITE],
+  'A nuclear battery': [{ label: 'Wikipedia: MMRTG', url: 'https://en.wikipedia.org/wiki/Multi-mission_radioisotope_thermoelectric_generator' }, NASA],
+  'Calling home': [WIKI_DRAGONFLY, SITE],
+  'Feeding the lab': [WIKI_DRAGONFLY, SITE],
+  DraMS: [WIKI_DRAGONFLY, SITE],
+  DraGNS: [WIKI_DRAGONFLY, SITE],
+  DraGMet: [WIKI_DRAGONFLY, SITE],
+  DragonCam: [WIKI_DRAGONFLY, SITE],
+  'Sources and credits': [SITE, NASA, WIKI_DRAGONFLY],
+};
+for (const e of LIBRARY) {
+  const l = LINKS[e.title];
+  if (l) e.links = l;
+}
 
 /** One-liners for the end-of-sortie debrief. */
 export const DID_YOU_KNOW: string[] = [

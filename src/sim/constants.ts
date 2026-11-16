@@ -33,7 +33,7 @@ export const MAX_LAND_TILT = 0.28;
 export const MAX_LAND_SLOPE = 0.35;
 
 /**
- * Methane ice balls lobbed by vents. Gravity here is arcade strength: Titan's real gravity would fling them far higher.
+ * Ice balls lobbed by vents. Gravity here is arcade strength: Titan's real gravity would fling them far higher.
  * Bounces keep some energy, then a ball settles into rolling. Gusts push balls in the air and on the ground.
  */
 export const BALL_GRAVITY = 12;

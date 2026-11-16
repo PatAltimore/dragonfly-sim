@@ -4,7 +4,7 @@ import { generateGates, type Gate } from './gates';
 import type { Terrain } from './terrain';
 import type { World } from './world';
 
-/** An ice vent: a crater that lobs methane ice balls on a timer. Landing anywhere near one is a gamble. */
+/** An ice vent: a crater that lobs ice balls on a timer. Landing anywhere near one is a gamble. */
 export interface Vent {
   x: number;
   /** Seconds between shots, and an offset so vents are out of step. */

@@ -83,14 +83,14 @@ Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars 
 | | Easy | Medium | Hard |
 |---|---|---|---|
 | Gates: gap between hill and cloud | 120 to 150 m, steady | 90 to 115 m, clouds bob 10 m | 66 to 86 m, clouds bob 20 m |
-| Ice vents (lob bouncing methane ice balls, many near landing targets) | none | a shot every 9 to 13 s | every 6.5 to 9 s, two balls each |
+| Ice vents (lob bouncing ice balls, many near landing targets) | none | a shot every 9 to 13 s | every 6.5 to 9 s, two balls each |
 | Weather, battery drain, terrain | baseline | tougher | much tougher |
 | Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
 | Score multiplier | x1 | x1.25 | x1.5 |
 
 **Ice balls destroy the craft.** There is no damage meter: touching an ice ball, in the air or on the ground, ends the run. Warnings on the HUD and the radar strip (white dots for balls) show what is near.
 
-**Ice vents lob methane ice balls.** A crater glows and flashes for about 1.6 seconds, then fires a ball (two on Hard). Some shots are aimed roughly at where you are. Each ball picks its own style: a steep lob that goes almost straight up and drops near the vent, a mid-angle arc, or a low, fast, flatter parabola that skims the ground. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 16 to 20 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
+**Ice vents lob ice balls.** A crater glows and flashes for about 1.6 seconds, then fires a ball (two on Hard). Some shots are aimed roughly at where you are. Each ball picks its own style: a steep lob that goes almost straight up and drops near the vent, a mid-angle arc, or a low, fast, flatter parabola that skims the ground. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 16 to 20 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
 
 **Gates** are generated for each sortie and difficulty: hills of varying height, each with a methane cloud bank over it. The gap drifts gradually from one gate to the next, and gates keep clear of the base, the targets and the opening descent. They are an arcade invention; the Mission File notes that real Titan clouds are sparse.
 
@@ -105,6 +105,8 @@ The menu and pause screen open the **Mission File**: 31 short pages on the Drago
 - **Craft:** why a rotorcraft, the eight rotors, the nuclear battery, talking to Earth, and the drills.
 - **Tools:** DraMS, DraGNS, DraGMet and DragonCam, with how they map to the game's targets.
 - **Glossary** and **Sources.**
+
+Most pages end with links to read more (NASA, the mission site, Wikipedia): tap one, or press 1, 2 or 3. They open in a new tab.
 
 Briefings also describe each sortie's instruments, collecting data shows a short science note, and every debrief ends with a "Did you know?" fact. All of it lives in `src/content/library.ts` and `src/content/instruments.ts`.
 

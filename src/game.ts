@@ -88,6 +88,14 @@ export class Game {
     this.go('library');
   }
 
+  /** Open one of the current Mission File page's links in a new tab. */
+  private openLink(i: number): void {
+    const link = LIBRARY[this.libraryPage].links?.[i];
+    if (!link) return;
+    this.audio.sfx('select');
+    window.open(link.url, '_blank', 'noopener,noreferrer');
+  }
+
   private flipLibrary(delta: number): void {
     const n = LIBRARY.length;
     this.libraryPage = (this.libraryPage + delta + n) % n;
@@ -174,7 +182,8 @@ export class Game {
         else if (id === 'quit') this.toMenu();
         break;
       case 'library':
-        if (id === 'close') this.go(this.libraryFrom);
+        if (id.startsWith('link:')) this.openLink(Number(id.slice(5)));
+        else if (id === 'close') this.go(this.libraryFrom);
         else if (id === 'prev') this.flipLibrary(-1);
         else if (id === 'next') this.flipLibrary(1);
         else if (id.startsWith('tab:')) {
@@ -296,6 +305,9 @@ export class Game {
   private library(): void {
     if (this.pressed('ArrowLeft', 'KeyA')) this.flipLibrary(-1);
     if (this.pressed('ArrowRight', 'KeyD')) this.flipLibrary(1);
+    ['Digit1', 'Digit2', 'Digit3'].forEach((code, i) => {
+      if (this.keyboard.consumePress(code)) this.openLink(i);
+    });
     if (this.pressed('Escape', 'Backspace', 'KeyL')) return this.go(this.libraryFrom);
     this.renderer.draw(this.libraryFrom === 'paused' ? this.world : this.showBackdrop(this.cursor), false);
     this.arm(drawLibrary(this.renderer.surface(), this.libraryPage));

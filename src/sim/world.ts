@@ -119,7 +119,7 @@ export interface World {
   battery: number;
   /** Horizontal wind acceleration (m/s^2), reserved for hazards. */
   wind: number;
-  /** Methane ice balls currently in play, and how many shots each vent has fired. */
+  /** Ice balls currently in play, and how many shots each vent has fired. */
   balls: Ball[];
   ventShots: number[];
   /** Flight assist: automatic hover, soft landing and terrain clearance. Off means lander flight. */

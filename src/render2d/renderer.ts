@@ -193,7 +193,7 @@ export class Renderer {
     }
   }
 
-  /** Methane ice balls: shiny spheres that shrink away as they dissolve. */
+  /** Ice balls: shiny spheres that shrink away as they dissolve. */
   private drawBalls(w: World, cw: number, scale: number, sx: (x: number) => number, sy: (y: number) => number): void {
     const { ctx } = this;
     for (const b of w.balls) {

@@ -15,7 +15,7 @@ import type { Vent } from './obstacles';
 import type { World } from './world';
 
 /**
- * A methane ice ball lobbed by a vent. It flies on a ballistic arc, bounces on the terrain, settles
+ * An ice ball lobbed by a vent. It flies on a ballistic arc, bounces on the terrain, settles
  * into rolling, and is pushed around by gusts the whole time. It disappears after its lifetime runs
  * out. Touching the craft, in the air or on the ground, destroys it.
  */
@@ -175,7 +175,7 @@ export function stepBalls(w: World, dt: number): void {
     if (b.delay > 0) continue;
     if (Math.hypot(b.x - c.x, b.y - c.y) < b.r + CRAFT_RADIUS) {
       w.status = 'crashed';
-      w.message = 'Hit by a methane ice ball';
+      w.message = 'Hit by an ice ball';
       c.vx = 0;
       c.vy = 0;
       return;

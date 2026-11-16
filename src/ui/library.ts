@@ -48,7 +48,8 @@ function frame(s: Surface, entry: Entry): Frame {
   const visualH = entry.visual ? u * (s.cw < s.ch ? 8.4 : 6.4) : 0;
   const visualTop = titleBottom;
   const bodyTop = titleBottom + (visualH ? visualH + u * 0.8 : u * 0.4);
-  const bodyBottom = y + h - u * 5.4;
+  const n = entry.links?.length ?? 0;
+  const bodyBottom = y + h - u * 5.4 - (n ? n * u * 1.7 + u * 1.9 : 0);
   return { x, y, w, h, u, bodyTop, bodyBottom, visualTop, visualH };
 }
 
@@ -120,6 +121,19 @@ export function drawLibrary(s: Surface, page: number): Hit[] {
     text(s, line.text, f.x + u * 2.2, y, layout.size, CREAM, 'left');
     y += layout.size * 1.38;
   }
+
+  // Further reading: each link opens in a new tab.
+  const links = entry.links ?? [];
+  links.forEach((l, i) => {
+    const ly = f.y + f.h - u * 7.2 - (links.length - 1 - i) * u * 1.7;
+    ctx.font = `${u * 0.95}px monospace`;
+    const label = `${i + 1}. ${l.label}`;
+    const tw = Math.min(ctx.measureText(label).width, f.w - u * 4.4);
+    text(s, label, f.x + u * 2.2, ly, u * 0.95, '#8fd3ff', 'left');
+    ctx.fillStyle = '#8fd3ff';
+    ctx.fillRect(f.x + u * 2.2, ly + u * 0.2, tw, Math.max(1, u * 0.07));
+    hits.push({ id: `link:${i}`, x: f.x + u * 1.6, y: ly - u * 1.1, w: f.w - u * 3.2, h: u * 1.6 });
+  });
 
   // Page position and navigation.
   text(s, `Page ${page + 1} of ${LIBRARY.length}`, s.cw / 2, f.y + f.h - u * 5.9, u * 0.8, DIM);

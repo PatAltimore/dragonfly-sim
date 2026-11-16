@@ -6,7 +6,7 @@ export const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard'];
 
 /**
  * How a difficulty bends a sortie. Easy is the baseline. Medium and Hard make the weather and landing
- * stricter, make the ground rougher, and add ice vents that lob bouncing methane ice balls.
+ * stricter, make the ground rougher, and add ice vents that lob bouncing ice balls.
  */
 export interface DifficultySpec {
   id: Difficulty;
