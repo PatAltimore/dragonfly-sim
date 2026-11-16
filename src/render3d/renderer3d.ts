@@ -726,7 +726,7 @@ export class Renderer3D implements SceneRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     this.drawLabels(w, cw, ch);
-    if (hud) drawHud(ctx, w, cw, ch, this.keyHints);
+    if (hud) drawHud(ctx, w, cw, ch, this.keyHints, this.project(w.craft.x, w.craft.y, cw, ch));
   }
 
   /** Sky gradient, fog, and sun/ambient light follow the time of day, haze and rain. */

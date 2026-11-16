@@ -123,7 +123,7 @@ export class Renderer {
     this.drawCraft(w, scale, sx, sy);
     this.drawWeatherFx(w, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
-    if (hud) drawHud(ctx, w, cw, ch, this.keyHints);
+    if (hud) drawHud(ctx, w, cw, ch, this.keyHints, { x: sx(w.craft.x), y: sy(w.craft.y) });
   }
 
   /** Gates: a methane cloud bank over a hill, . */

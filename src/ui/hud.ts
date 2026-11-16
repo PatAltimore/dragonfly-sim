@@ -20,10 +20,10 @@ import { cargoValue } from '../sim/science';
 import { altitudeAGL, clockOf, isPowerLost, weatherActive, type World } from '../sim/world';
 
 /** The touchdown meter appears below this altitude (m). */
-const METER_AGL = 70;
+const METER_AGL = 20;
 
 /** The flight HUD, drawn onto a 2D canvas over whichever renderer shows the world. */
-export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, keyHints: boolean): void {
+export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, keyHints: boolean, craftPx: { x: number; y: number } | null = null): void {
   const c = w.craft;
   const u = Math.max(10, ch / 50);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -113,7 +113,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
 
   drawIntroHud(ctx, w, cw, ch, u);
   drawHint(ctx, w, cw, ch, u);
-  drawTouchdownMeter(ctx, w, cw, ch, u);
+  drawTouchdownMeter(ctx, w, cw, ch, u, craftPx);
   drawMissionLog(ctx, w, cw, ch, u, keyHints);
   if (w.gateFlash && w.gateFlash.until > w.time && w.status !== 'crashed') {
     const t = 1 - (w.gateFlash.until - w.time) / GATE_FLASH;
@@ -298,7 +298,14 @@ function drawSortieHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: 
 }
 
 /** Vertical speed gauge that appears near the ground: green means a safe touchdown, yellow is marginal, red would crash. */
-function drawTouchdownMeter(ctx: CanvasRenderingContext2D, w: World, cw: number, ch: number, u: number): void {
+function drawTouchdownMeter(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  cw: number,
+  ch: number,
+  u: number,
+  craftPx: { x: number; y: number } | null,
+): void {
   const c = w.craft;
   const agl = altitudeAGL(w);
   if (w.phase !== 'flight' || w.status !== 'flying' || agl > METER_AGL) return;
@@ -313,10 +320,11 @@ function drawTouchdownMeter(ctx: CanvasRenderingContext2D, w: World, cw: number,
   const color = ratio <= 0.6 ? '#8be07a' : ratio <= 1 ? '#ffd24a' : '#ff4a2a';
   const blink = Math.floor(w.time * 6) % 2 === 0;
 
-  const bw = u * 1.6;
-  const bh = u * 12;
-  const x = cw - u * 3.2;
-  const top = ch - u * 8 - bh;
+  const bw = u * 1;
+  const bh = u * 6;
+  // The gauge rides beside the craft, to its right.
+  const x = Math.min(cw - bw - u * 2, craftPx ? craftPx.x + u * 4 : cw - u * 3.2);
+  const top = Math.min(ch - bh - u * 4, Math.max(u * 3.6, craftPx ? craftPx.y - bh / 2 : ch - u * 14));
   const full = limit * 2;
   const zone = (from: number, to: number, c2: string) => {
     ctx.fillStyle = c2;
@@ -324,7 +332,7 @@ function drawTouchdownMeter(ctx: CanvasRenderingContext2D, w: World, cw: number,
   };
   ctx.save();
   ctx.fillStyle = 'rgba(20,10,0,0.55)';
-  ctx.fillRect(x - u * 0.8, top - u * 2.6, bw + u * 1.6, bh + u * 5.2);
+  ctx.fillRect(x - u * 1.9, top - u * 1.8, bw + u * 3.8, bh + u * 3.8);
   zone(0, limit * 0.6, 'rgba(139,224,122,0.3)');
   zone(limit * 0.6, limit, 'rgba(255,210,74,0.3)');
   zone(limit, full, 'rgba(255,74,42,0.3)');
@@ -336,12 +344,12 @@ function drawTouchdownMeter(ctx: CanvasRenderingContext2D, w: World, cw: number,
   ctx.fillStyle = '#ffe2b0';
   ctx.fillRect(x - u * 0.3, top + bh / 2 - 1, bw + u * 0.6, 2);
   ctx.textAlign = 'center';
-  ctx.font = `${u * 0.8}px monospace`;
+  ctx.font = `${u * 0.62}px monospace`;
   ctx.fillStyle = '#ffe2b0';
-  ctx.fillText('SINK', x + bw / 2, top - u * 0.9);
-  ctx.font = `bold ${u}px monospace`;
+  ctx.fillText('VERT VEL', x + bw / 2, top - u * 0.5);
+  ctx.font = `bold ${u * 0.8}px monospace`;
   ctx.fillStyle = color;
-  ctx.fillText(c.vy >= 0 ? `+${c.vy.toFixed(1)}` : c.vy.toFixed(1), x + bw / 2, top + bh + u * 1.6);
+  ctx.fillText(c.vy >= 0 ? `+${c.vy.toFixed(1)}` : c.vy.toFixed(1), x + bw / 2, top + bh + u * 1.2);
   ctx.restore();
 }
 
