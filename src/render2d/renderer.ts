@@ -10,6 +10,7 @@ import {
 } from '../sim/constants';
 import { daylight } from '../sim/daynight';
 import { drawHud } from '../ui/hud';
+import { boxViewH, poiBox } from './framing';
 import { drawIrBadge, drawIrOverlay, drawSaturnSky, IR_DAY_SKY } from './saturn';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState } from '../sim/obstacles';
@@ -93,15 +94,22 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const dt = Math.min(0.1, Math.max(0, w.time - this.lastTime));
     this.lastTime = w.time;
-    this.viewH += (this.targetViewH(w) - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
+    // Keep the destination in view too: zoom out to fit the craft and the nearest target or the base.
+    const box = poiBox(w);
+    const wantH = Math.max(this.targetViewH(w), box ? boxViewH(box, cw / Math.max(1, ch)) : 0);
+    this.viewH += (wantH - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
     const scale = ch / this.viewH;
 
     // Camera follows the craft with a little lead in the direction of travel.
     const c = w.craft;
-    const targetX = c.x + c.vx * 0.8;
+    let targetX = c.x + c.vx * 0.8;
     let targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
     const frame = gateFraming(w);
     if (frame) targetY += (frame.y - targetY) * frame.k;
+    if (box) {
+      targetX += ((box.x0 + box.x1) / 2 - targetX) * 0.9;
+      targetY += ((box.y0 + box.y1) / 2 - targetY) * 0.9;
+    }
     const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;

@@ -15,6 +15,7 @@ import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState, type Obstacles } from '../sim/obstacles';
 import { cloudBottom, gateFraming } from '../sim/gates';
 import { drawHud } from '../ui/hud';
+import { boxViewH, poiBox } from '../render2d/framing';
 import {
   drawIrBadge,
   drawIrOverlay,
@@ -703,11 +704,18 @@ export class Renderer3D implements SceneRenderer {
     }
 
     // Camera follows the craft with a little lead, as in the 2D view; distance sets how much of the world fits.
-    this.viewH += (this.targetViewH(w) - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
-    const targetX = c.x + c.vx * 0.8;
+    // Keep the destination in view too: zoom out to fit the craft and the nearest target or the base.
+    const box = poiBox(w);
+    const wantH = Math.max(this.targetViewH(w), box ? boxViewH(box, cw / Math.max(1, ch)) : 0);
+    this.viewH += (wantH - this.viewH) * (1 - Math.exp(-2 * Math.max(dt, 1 / 60)));
+    let targetX = c.x + c.vx * 0.8;
     let targetY = Math.max(c.y + 6, w.terrain.heightAt(c.x) + this.viewH * 0.35);
     const frame = gateFraming(w);
     if (frame) targetY += (frame.y - targetY) * frame.k;
+    if (box) {
+      targetX += ((box.x0 + box.x1) / 2 - targetX) * 0.9;
+      targetY += ((box.y0 + box.y1) / 2 - targetY) * 0.9;
+    }
     const k = 1 - Math.exp(-5 * Math.max(dt, 1 / 60));
     this.camX += (targetX - this.camX) * k;
     this.camY += (targetY - this.camY) * k;

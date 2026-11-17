@@ -41,6 +41,8 @@ Finish a sortie for one star, with extra stars for beating the par time and keep
 | Open the Mission File | L | MISSION FILE button (menu and pause) |
 | Fold or unfold the mission log card | K | Tap its header |
 
+The camera follows the craft, and zooms out to keep the nearest target (or the base, once you carry data) in view as you approach it.
+
 On a touch screen the joystick floats: put a finger down anywhere and drag. The farther you push, the harder you steer.
 
 Menus work with the keyboard (arrows and Enter) or by tapping or clicking.
