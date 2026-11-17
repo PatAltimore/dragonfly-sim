@@ -753,12 +753,12 @@ export class Renderer3D implements SceneRenderer {
   /** Saturn's place in the sky: a sprite parented to the camera, so it stays fixed on screen like a far-off body. */
   private buildSaturn(): void {
     this.saturnCanvas.width = 1024;
-    this.saturnCanvas.height = 256;
+    this.saturnCanvas.height = 512;
     this.saturnTexture.colorSpace = THREE.SRGBColorSpace;
     const D = 3500;
     const width = 2 * D * Math.tan(((SATURN_SPAN_DEG + 1) * Math.PI) / 360);
     const mat = new THREE.MeshBasicMaterial({ map: this.saturnTexture, transparent: true, depthWrite: false, fog: false });
-    this.saturnMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), mat);
+    this.saturnMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 2), mat);
     this.saturnMesh.visible = false;
     this.saturnMesh.renderOrder = -10;
     this.camera.add(this.saturnMesh);
@@ -779,10 +779,10 @@ export class Renderer3D implements SceneRenderer {
       this.saturnKey = key;
       const g = this.saturnCanvas.getContext('2d');
       if (g) {
-        g.clearRect(0, 0, 1024, 256);
+        g.clearRect(0, 0, 1024, 512);
         // The canvas spans the ring width, so the disc is 5.09 degrees of that span.
         const r = (1024 * (5.09 / 2)) / (SATURN_SPAN_DEG + 1);
-        drawSaturn(g, 512, 128, r, lit, right);
+        drawSaturn(g, 512, 256, r, lit, right);
         this.saturnTexture.needsUpdate = true;
       }
     }
