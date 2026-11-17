@@ -10,6 +10,7 @@ import {
 } from '../sim/constants';
 import { daylight } from '../sim/daynight';
 import { drawHud } from '../ui/hud';
+import { drawIrBadge, drawIrOverlay, drawSaturnSky, IR_DAY_SKY } from './saturn';
 import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState } from '../sim/obstacles';
 import { cloudBottom, cloudUnderside, gateFraming } from '../sim/gates';
@@ -49,6 +50,7 @@ export class Renderer {
   private viewH = VIEW_HEIGHT_M;
   /** Show the keyboard cheat-sheet along the bottom (hidden on touch devices). */
   keyHints = true;
+  infrared = false;
   private lastPhase = 'flight';
   private canopy: Canopy | null = null;
 
@@ -108,7 +110,8 @@ export class Renderer {
     const sy = (y: number) => ch / 2 - (y - this.camY) * scale;
 
     this.drawSky(cw, ch);
-    this.drawWisps(cw, ch, scale, sx, sy);
+    if (this.infrared) drawSaturnSky(ctx, cw, ch, w);
+    else this.drawWisps(cw, ch, scale, sx, sy);
     this.drawFarDunes(cw, ch, scale);
     this.drawTerrain(w, cw, ch, scale, sx, sy);
     this.drawBase(w, scale, sx, sy);
@@ -122,8 +125,10 @@ export class Renderer {
     this.drawCanopy(w, dt, scale, sx, sy);
     this.drawCraft(w, scale, sx, sy);
     this.drawWeatherFx(w, cw, ch);
+    if (this.infrared) drawIrOverlay(ctx, cw, ch);
     this.drawNight(w, cw, ch, scale, sx, sy);
     if (hud) drawHud(ctx, w, cw, ch, this.keyHints, { x: sx(w.craft.x), y: sy(w.craft.y) });
+    if (this.infrared && hud) drawIrBadge(ctx, ch);
   }
 
   /** Gates: a methane cloud bank over a hill, . */
@@ -217,9 +222,10 @@ export class Renderer {
 
   private drawSky(cw: number, ch: number): void {
     const g = this.ctx.createLinearGradient(0, 0, 0, ch);
-    g.addColorStop(0, '#6b3a14');
-    g.addColorStop(0.55, '#c87a2c');
-    g.addColorStop(1, '#e8a54a');
+    const sky = this.infrared ? IR_DAY_SKY : ['#6b3a14', '#c87a2c', '#e8a54a'];
+    g.addColorStop(0, sky[0]);
+    g.addColorStop(0.55, sky[1]);
+    g.addColorStop(1, sky[2]);
     this.ctx.fillStyle = g;
     this.ctx.fillRect(0, 0, cw, ch);
   }

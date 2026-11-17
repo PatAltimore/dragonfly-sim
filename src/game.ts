@@ -134,6 +134,13 @@ export class Game {
     this.audio.sfx('select');
   }
 
+  /** The artistic infrared view on or off. Remembered. */
+  private toggleInfrared(): void {
+    this.progress.infrared = !this.progress.infrared;
+    saveProgress(this.progress);
+    this.audio.sfx('select');
+  }
+
   private toggleSound(): void {
     this.progress.muted = this.audio.toggleMute();
     saveProgress(this.progress);
@@ -161,6 +168,7 @@ export class Game {
     if (id === 'sound') return this.toggleSound();
     if (id === 'view') return this.onToggleView();
     if (id === 'assist') return this.toggleAssist();
+    if (id === 'ir') return this.toggleInfrared();
     if (id === 'library') return this.openLibrary(this.screen);
     switch (this.screen) {
       case 'menu': {
@@ -213,6 +221,8 @@ export class Game {
   frame(dt: number): void {
     this.touch.playing = this.screen === 'play';
     this.renderer.keyHints = !this.touch.enabled;
+    this.renderer.infrared = this.progress.infrared;
+    if (this.screen !== 'library' && this.screen !== 'debrief' && this.keyboard.consumePress('KeyI')) this.toggleInfrared();
     if (this.keyboard.consumePress('KeyM')) this.toggleSound();
     if (this.keyboard.consumePress('KeyV')) return this.onToggleView();
     if (this.screen !== 'library' && this.screen !== 'debrief' && this.keyboard.consumePress('KeyF')) this.toggleAssist();
@@ -303,7 +313,7 @@ export class Game {
     if (this.keyboard.consumePress('KeyQ')) return this.toMenu();
     if (this.keyboard.consumePress('KeyL')) return this.openLibrary('paused');
     this.renderer.draw(this.world, true);
-    this.arm(drawPause(this.renderer.surface(), this.progress.muted, this.progress.assist));
+    this.arm(drawPause(this.renderer.surface(), this.progress.muted, this.progress.assist, this.progress.infrared));
     this.audio.update(null, false);
   }
 

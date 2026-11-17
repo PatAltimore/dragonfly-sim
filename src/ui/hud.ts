@@ -136,7 +136,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, w: World, cw: number, ch:
   ctx.fillStyle = 'rgba(255,226,176,0.7)';
   if (keyHints) {
     const keys = w.assist ? 'Arrows/WASD: tilt + climb/descend' : '←/→ tilt    ↑ thrust (gravity pulls you down)';
-    ctx.fillText(`${keys}    R: restart    K: mission log    Esc: pause (F: flight assist)`, cw / 2, ch - u * 0.8);
+    ctx.fillText(`${keys}    R: restart    K: mission log    I: infrared    Esc: pause (F: assist)`, cw / 2, ch - u * 0.8);
   }
 }
 

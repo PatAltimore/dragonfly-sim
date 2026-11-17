@@ -23,7 +23,7 @@ By default the craft flies like a lunar lander. **Up is thrust** along the craft
 
 **Flight assist** (press F, or use the button on the menu, briefing or pause screen) is the automatic crash prevention. It hovers for you, makes Up and Down command a climb rate, slows the descent near the ground for a soft landing, and lifts the craft over rising ground ahead. It is off by default and the choice is remembered. A dead battery always gets an automatic emergency descent.
 
-Finish a sortie for one star, with extra stars for beating the par time and keeping battery in reserve. Clearing a sortie unlocks the next of eight.
+Finish a sortie for one star, with extra stars for beating the par time and keeping battery in reserve. All eight sorties are open from the start, in any order.
 
 ### Controls
 
@@ -79,27 +79,31 @@ The simulation never touches the DOM or the canvas, so renderers are interchange
 
 ## Difficulty
 
-Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars and best scores are kept separately for each, and a sortie opens once the one before it is cleared on any difficulty.
+Pick **Easy**, **Medium** or **Hard** on the menu (Left / Right, or tap). Stars and best scores are kept separately for each. Every sortie is open at every difficulty.
 
 | | Easy | Medium | Hard |
 |---|---|---|---|
 | Gates: gap between hill and cloud | 120 to 150 m, steady | 90 to 115 m, clouds bob 10 m | 66 to 86 m, clouds bob 20 m |
-| Ice vents (lob bouncing ice balls, many near landing targets) | none | a shot every 9 to 13 s | every 6.5 to 9 s, two balls each |
+| Ice vents (erupt fountains of bouncing ice balls, many near landing targets) | none | an eruption every 9 to 13 s | every 6.5 to 9 s |
 | Weather, battery drain, terrain | baseline | tougher | much tougher |
 | Landing limits and work times | baseline | stricter, 25% longer | stricter, 50% longer |
 | Score multiplier | x1 | x1.25 | x1.5 |
 
 **Ice balls destroy the craft.** There is no damage meter: touching an ice ball, in the air or on the ground, ends the run. Warnings on the HUD and the radar strip (white dots for balls) show what is near.
 
-**Ice vents lob ice balls.** A crater glows and flashes for about 1.6 seconds, then fires a ball (two on Hard). Some shots are aimed roughly at where you are. Each ball picks its own style: a steep lob that goes almost straight up and drops near the vent, a mid-angle arc, or a low, fast, flatter parabola that skims the ground. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 16 to 20 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
+**Ice vents erupt like small volcanoes.** A crater glows and flashes for about 1.6 seconds, then throws a fountain of ice balls (three on Medium, five on Hard) high into the air. The balls spray left and right in parabolic arcs, some going almost straight up and others in lower, wider arcs, and some are aimed roughly at where you are. All follow ballistic arcs, bounce off the terrain, settle into rolling, and dissolve after 12 to 14 seconds. **Wind gusts push balls** in the air and shove them along the ground, and balls roll downhill. Many vents stand a short way from landing targets, so working on the ground means watching the sky and taking off when a ball comes your way. Balls break up before they reach the base, so landing at the base is always safe.
 
 **Gates** are generated for each sortie and difficulty: hills of varying height, each with a methane cloud bank over it. The gap drifts gradually from one gate to the next, and gates keep clear of the base, the targets and the opening descent. They are an arcade invention; the Mission File notes that real Titan clouds are sparse.
 
 Vents are placed deterministically and never on the base or a target. The numbers live in `src/content/difficulty.ts`. The vents are an arcade invention; the Mission File says which real Titan features inspired them.
 
+## Infrared view
+
+Press **I** (or use the IR VIEW button on the menu or pause screen) for an artistic infrared view. The haze is removed from the sky and **Saturn** hangs in it at its real apparent size, about 5 degrees across (more than ten times the Moon seen from Earth), with its rings edge-on as a thin line, because Titan orbits in the plane of the rings. Saturn goes through phases over one Titan day: new at local noon and full at midnight. It is artistic because in reality Titan's haze hides Saturn from the surface, and at Dragonfly's landing region Saturn is below the horizon anyway. The choice is remembered.
+
 ## The Mission File (education and science)
 
-The menu and pause screen open the **Mission File**: 31 short pages on the Dragonfly mission and Titan, in six sections:
+The menu and pause screen open the **Mission File**: 32 short pages on the Dragonfly mission and Titan, in six sections:
 
 - **Mission:** the big science question, timeline, team, the 105-minute autonomous landing, a day on Titan, and the public "Soar with Dragonfly" program.
 - **Titan:** size and gravity, the orange haze, methane weather, hydrocarbon seas, dunes of organic material, tholins, the possible hidden ocean, and the Huygens landing.

@@ -54,9 +54,9 @@ type Style = 'lob' | 'mid' | 'flat';
 
 /** Launch angle range above the horizontal (degrees) and a speed scale for each style. */
 const STYLES: Record<Style, { angle: [number, number]; speed: number }> = {
-  lob: { angle: [66, 86], speed: 1 },
-  mid: { angle: [36, 56], speed: 0.95 },
-  flat: { angle: [10, 26], speed: 0.95 },
+  lob: { angle: [68, 88], speed: 1.05 },
+  mid: { angle: [50, 66], speed: 1 },
+  flat: { angle: [32, 48], speed: 0.95 },
 };
 
 /**
@@ -81,7 +81,9 @@ function fire(w: World, v: Vent, index: number, shot: number): void {
     const speed = lerp(spec.ballSpeed[0], spec.ballSpeed[1], r2) * def.speed;
     const angle = (lerp(def.angle[0], def.angle[1], r5) * Math.PI) / 180;
     const aimed = r3 < spec.ballAim && Math.abs(c.x - v.x) < 280;
-    const dir = aimed ? Math.sign(c.x - v.x) || 1 : r1 < 0.5 ? -1 : 1;
+    // Like a volcano's fountain, the burst sprays both ways: its balls alternate left and right.
+    const side = r1 < 0.5 ? -1 : 1;
+    const dir = aimed ? Math.sign(c.x - v.x) || 1 : b % 2 === 0 ? side : -side;
 
     let vx = dir * speed * Math.cos(angle);
     const vy = speed * Math.sin(angle);
@@ -98,7 +100,7 @@ function fire(w: World, v: Vent, index: number, shot: number): void {
       r: spec.ballRadius,
       age: 0,
       life: spec.ballLife,
-      delay: b * 0.35,
+      delay: b * 0.1,
       grounded: false,
       bounces: 0,
     });

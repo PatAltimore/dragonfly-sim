@@ -148,9 +148,14 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
   hits.push(button(s, 'view', view3d ? 'VIEW: 3D' : 'VIEW: 2D', u * 1, u * 1, u * 8.6, u * 2.4));
   const rowW = Math.min(u * 50, s.cw * 0.94);
   const by = top + rowH * LEVELS.length + u * 1.5;
-  const fileW = rowW * 0.56;
-  hits.push(button(s, 'library', 'MISSION FILE (L)', s.cw / 2 - rowW / 2, by, fileW, u * 2.6));
-  hits.push(button(s, 'assist', progress.assist ? 'FLIGHT ASSIST: ON (F)' : 'FLIGHT ASSIST: OFF (F)', s.cw / 2 - rowW / 2 + fileW + u * 0.8, by, rowW - fileW - u * 0.8, u * 2.6, progress.assist));
+  const gap = u * 0.8;
+  const fileW = (rowW - gap * 2) * 0.35;
+  const assistW = (rowW - gap * 2) * 0.38;
+  const irW = rowW - gap * 2 - fileW - assistW;
+  const rowX = s.cw / 2 - rowW / 2;
+  hits.push(button(s, 'library', 'MISSION FILE (L)', rowX, by, fileW, u * 2.6));
+  hits.push(button(s, 'assist', progress.assist ? 'FLIGHT ASSIST: ON (F)' : 'FLIGHT ASSIST: OFF (F)', rowX + fileW + gap, by, assistW, u * 2.6, progress.assist));
+  hits.push(button(s, 'ir', progress.infrared ? 'IR VIEW: ON (I)' : 'IR VIEW: OFF (I)', rowX + fileW + assistW + gap * 2, by, irW, u * 2.6, progress.infrared));
   // The explanation and key list only appear where there is room for them below the buttons.
   const noteY = by + u * 4.2;
   const keysY = s.ch - u * 1.2;
@@ -158,7 +163,7 @@ export function drawMenu(s: Surface, progress: Progress, cursor: number, view3d:
     text(s, progress.assist ? 'Assist: auto-hover and soft landings' : 'No assist: Up is thrust, gravity pulls you down', s.cw / 2, noteY, u * 0.9, DIM);
   }
   if (by + u * 3.4 < keysY - u * 0.8) {
-    text(s, '↑/↓ sortie   ←/→ difficulty   Enter launch   F assist   M sound   V view   L file', s.cw / 2, keysY, u * 0.95, CREAM);
+    text(s, '↑/↓ sortie   ←/→ difficulty   Enter launch   F assist   I infrared   M sound   V view   L file', s.cw / 2, keysY, u * 0.95, CREAM);
   }
   return hits;
 }
@@ -325,11 +330,11 @@ export function drawDebrief(s: Surface, r: RunResult, level: Level, index: numbe
   return buttonRow(s, items, s.cw / 2, y + h - u * 4.4, u);
 }
 
-export function drawPause(s: Surface, muted: boolean, assist: boolean): Hit[] {
+export function drawPause(s: Surface, muted: boolean, assist: boolean, infrared: boolean): Hit[] {
   dim(s, 0.55);
   const u = unit(s);
   const w = Math.min(s.cw * 0.9, u * 24);
-  const h = u * 29;
+  const h = u * 32.6;
   const x = s.cw / 2 - w / 2;
   const y = s.ch / 2 - h / 2;
   panel(s, x, y, w, h);
@@ -343,5 +348,6 @@ export function drawPause(s: Surface, muted: boolean, assist: boolean): Hit[] {
     button(s, 'sound', muted ? 'SOUND OFF (M)' : 'SOUND ON (M)', bx, y + u * 16.4, bw, u * 3),
     button(s, 'library', 'MISSION FILE (L)', bx, y + u * 20, bw, u * 3),
     button(s, 'assist', assist ? 'FLIGHT ASSIST: ON (F)' : 'FLIGHT ASSIST: OFF (F)', bx, y + u * 23.6, bw, u * 3),
+    button(s, 'ir', infrared ? 'INFRARED VIEW: ON (I)' : 'INFRARED VIEW: OFF (I)', bx, y + u * 27.2, bw, u * 3),
   ];
 }

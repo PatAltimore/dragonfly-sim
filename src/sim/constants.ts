@@ -50,7 +50,7 @@ export const BALL_ROLL_DRAG = 0.5;
 export const WIND_SPEED_PER_ACCEL = 0.12;
 /** Balls break up before reaching the base: it stays safe. At most this many exist at once. */
 export const BALL_BASE_SHIELD = 70;
-export const BALL_LIMIT = 24;
+export const BALL_LIMIT = 48;
 
 /**
  * Lander flight (flight assist off): up is thrust along the craft's body axis and gravity pulls the

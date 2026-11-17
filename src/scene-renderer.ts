@@ -5,6 +5,8 @@ import type { Surface } from './ui/screens';
 export interface SceneRenderer {
   /** Show the keyboard cheat-sheet along the bottom (hidden on touch devices). */
   keyHints: boolean;
+  /** Artistic infrared view: haze removed from the sky, Saturn shown. */
+  infrared: boolean;
   /** Snap the camera onto the craft (call after a restart or a new world). */
   resetCamera(w: World): void;
   /** Draw the world, and the HUD over it when `hud` is true. */

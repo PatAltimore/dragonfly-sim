@@ -12,6 +12,8 @@ export interface Progress {
   muted: boolean;
   /** Flight assist: automatic hover, soft landing and terrain clearance. Off is lander-style flight. */
   assist: boolean;
+  /** The artistic infrared view with Saturn in the sky. */
+  infrared: boolean;
   /** The difficulty chosen on the menu. */
   difficulty: Difficulty;
 }
@@ -23,6 +25,7 @@ const fresh = (): Progress => ({
   best: { easy: blank(), medium: blank(), hard: blank() },
   muted: false,
   assist: false,
+  infrared: false,
   difficulty: 'easy',
 });
 
@@ -42,6 +45,7 @@ export function loadProgress(): Progress {
       best?: unknown;
       muted?: unknown;
       assist?: unknown;
+      infrared?: unknown;
       difficulty?: unknown;
     };
     const p = fresh();
@@ -59,6 +63,7 @@ export function loadProgress(): Progress {
     }
     p.muted = Boolean(data.muted);
     p.assist = Boolean(data.assist);
+    p.infrared = Boolean(data.infrared);
     if (DIFFICULTY_ORDER.includes(data.difficulty as Difficulty)) p.difficulty = data.difficulty as Difficulty;
     return p;
   } catch {
@@ -74,9 +79,9 @@ export function saveProgress(p: Progress): void {
   }
 }
 
-/** A sortie is open once the one before it has been cleared, on any difficulty. */
-export function isUnlocked(p: Progress, index: number): boolean {
-  return index === 0 || DIFFICULTY_ORDER.some((d) => p.stars[d][index - 1] > 0);
+/** Every sortie is open from the start: no need to clear the one before it. */
+export function isUnlocked(_p: Progress, _index: number): boolean {
+  return true;
 }
 
 /** Record a finished sortie. Returns true if it set a new best score at that difficulty. */

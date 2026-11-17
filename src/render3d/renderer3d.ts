@@ -15,6 +15,17 @@ import { gustAt, hazeAt, rainAt } from '../sim/hazards';
 import { VENT_FLASH, ventState, type Obstacles } from '../sim/obstacles';
 import { cloudBottom, gateFraming } from '../sim/gates';
 import { drawHud } from '../ui/hud';
+import {
+  drawIrBadge,
+  drawIrOverlay,
+  drawSaturn,
+  IR_DAY_SKY,
+  IR_NIGHT_SKY,
+  saturnLit,
+  saturnLitRight,
+  SATURN_SPAN_DEG,
+  SATURN_SPOT,
+} from '../render2d/saturn';
 import type { Surface } from '../ui/screens';
 import { altitudeAGL, clockOf, weatherActive, type World } from '../sim/world';
 
@@ -176,6 +187,12 @@ interface Dust {
  */
 export class Renderer3D implements SceneRenderer {
   keyHints = true;
+  infrared = false;
+  /** Saturn for the infrared view: a textured plane fixed to the camera, far behind everything else. */
+  private saturnCanvas = document.createElement('canvas');
+  private saturnTexture = new THREE.CanvasTexture(this.saturnCanvas);
+  private saturnMesh: THREE.Mesh | null = null;
+  private saturnKey = '';
   private ctx: CanvasRenderingContext2D;
   private gl: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -246,6 +263,7 @@ export class Renderer3D implements SceneRenderer {
     this.skyTexture = new THREE.CanvasTexture(this.skyCanvas);
     this.skyTexture.colorSpace = THREE.SRGBColorSpace;
     this.scene.background = this.skyTexture;
+    this.buildSaturn();
     this.scene.fog = this.fog;
 
     this.sun.position.set(-120, 80, 100);
@@ -710,6 +728,7 @@ export class Renderer3D implements SceneRenderer {
     this.terrainMesh.position.x = snap;
 
     this.updateAtmosphere(w, dist);
+    this.updateSaturn(w);
     this.updateCraft(w, dt);
     this.updateCanopy(w, dt);
     this.updateTargets(w, dt);
@@ -725,8 +744,52 @@ export class Renderer3D implements SceneRenderer {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
+    if (this.infrared) drawIrOverlay(ctx, cw, ch);
     this.drawLabels(w, cw, ch);
     if (hud) drawHud(ctx, w, cw, ch, this.keyHints, this.project(w.craft.x, w.craft.y, cw, ch));
+    if (this.infrared && hud) drawIrBadge(ctx, ch);
+  }
+
+  /** Saturn's place in the sky: a sprite parented to the camera, so it stays fixed on screen like a far-off body. */
+  private buildSaturn(): void {
+    this.saturnCanvas.width = 1024;
+    this.saturnCanvas.height = 256;
+    this.saturnTexture.colorSpace = THREE.SRGBColorSpace;
+    const D = 3500;
+    const width = 2 * D * Math.tan(((SATURN_SPAN_DEG + 1) * Math.PI) / 360);
+    const mat = new THREE.MeshBasicMaterial({ map: this.saturnTexture, transparent: true, depthWrite: false, fog: false });
+    this.saturnMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), mat);
+    this.saturnMesh.visible = false;
+    this.saturnMesh.renderOrder = -10;
+    this.camera.add(this.saturnMesh);
+    this.scene.add(this.camera);
+    this.saturnMesh.userData.D = D;
+  }
+
+  /** Show Saturn when the infrared view is on, with the phase for the time of day. */
+  private updateSaturn(w: World): void {
+    const m = this.saturnMesh;
+    if (!m) return;
+    m.visible = this.infrared;
+    if (!this.infrared) return;
+    const lit = saturnLit(w);
+    const right = saturnLitRight(w);
+    const key = `${Math.round(lit * 100)}|${right}`;
+    if (key !== this.saturnKey) {
+      this.saturnKey = key;
+      const g = this.saturnCanvas.getContext('2d');
+      if (g) {
+        g.clearRect(0, 0, 1024, 256);
+        // The canvas spans the ring width, so the disc is 5.09 degrees of that span.
+        const r = (1024 * (5.09 / 2)) / (SATURN_SPAN_DEG + 1);
+        drawSaturn(g, 512, 128, r, lit, right);
+        this.saturnTexture.needsUpdate = true;
+      }
+    }
+    // Fixed screen position: convert the screen fractions to camera-space offsets at the sprite's distance.
+    const D = m.userData.D as number;
+    const halfH = D * Math.tan((FOV_DEG * Math.PI) / 360);
+    m.position.set((SATURN_SPOT.x * 2 - 1) * halfH * this.camera.aspect, (1 - SATURN_SPOT.y * 2) * halfH, -D);
   }
 
   /** Sky gradient, fog, and sun/ambient light follow the time of day, haze and rain. */
@@ -737,14 +800,16 @@ export class Renderer3D implements SceneRenderer {
     const rain = weather ? rainAt(w.level.zones, w.craft.x, w.time) : 0;
     const haze = weather ? hazeAt(w.level.zones, w.craft.x, w.time) : 0;
 
-    const key = `${dark.toFixed(2)}|${rain.toFixed(2)}`;
+    const day = this.infrared ? IR_DAY_SKY : DAY_SKY;
+    const night = this.infrared ? IR_NIGHT_SKY : NIGHT_SKY;
+    const key = `${dark.toFixed(2)}|${rain.toFixed(2)}|${this.infrared}`;
     if (key !== this.skyKey) {
       this.skyKey = key;
       const g = this.skyCanvas.getContext('2d');
       if (g) {
         const grad = g.createLinearGradient(0, 0, 0, 128);
         for (let i = 0; i < 3; i++) {
-          const c = mix(DAY_SKY[i], NIGHT_SKY[i], dark).lerp(tmpB.set('#7a7468'), rain * 0.35);
+          const c = mix(day[i], night[i], dark).lerp(tmpB.set('#7a7468'), rain * 0.35);
           grad.addColorStop(i / 2, c.getStyle());
         }
         g.fillStyle = grad;
@@ -753,7 +818,7 @@ export class Renderer3D implements SceneRenderer {
       }
     }
 
-    const horizon = mix(DAY_SKY[1], NIGHT_SKY[1], dark).lerp(tmpB.set('#6e685c'), rain * 0.4);
+    const horizon = mix(day[1], night[1], dark).lerp(tmpB.set('#6e685c'), rain * 0.4);
     this.fog.color.copy(horizon);
     // Haze pulls the fog in close enough to veil the ground; rain thins the far distance.
     this.fog.near = dist * (1.5 - 1.15 * haze);

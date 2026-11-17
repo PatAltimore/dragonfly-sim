@@ -136,6 +136,14 @@ export const LIBRARY: Entry[] = [
   },
   {
     section: 'titan',
+    title: 'Where is Saturn?',
+    body: [
+      'Saturn is left out of the normal game sky on purpose. Press I for the artistic infrared view, which shows it. Titan is tidally locked, so Saturn hangs at one fixed spot in its sky, about 5 degrees wide without its rings: more than ten times the width of the Moon seen from Earth. It never rises or sets, but it does go through phases as Titan orbits.',
+      'But Titan has an opaque orange haze, so from the surface the sky is a dim glow and the Sun is only a bright smear. Saturn could not be seen at all. And Selk crater, Dragonfly\u2019s landing region, lies near 199 degrees west, close to the side of Titan that faces away from Saturn, so Saturn would be below the horizon there even in clear air.',
+    ],
+  },
+  {
+    section: 'titan',
     title: 'Seas of methane',
     body: [
       'Most of Titan\'s lakes and seas sit near the poles. Three big northern seas hold about 80% of the liquid; Kraken Mare is the largest and Ligeia Mare the second largest.',
@@ -335,6 +343,7 @@ const LINKS: Record<string, Link[]> = {
   'An orange haze': [NASA_TITAN, WIKI_TITAN],
   'Methane weather': [NASA_TITAN, WIKI_TITAN],
   'Clouds and storms': [NASA_TITAN, WIKI_TITAN],
+  'Where is Saturn?': [WIKI_TITAN, NASA_TITAN],
   'Seas of methane': [{ label: 'Wikipedia: Lakes of Titan', url: 'https://en.wikipedia.org/wiki/Lakes_of_Titan' }, NASA_TITAN],
   'Dunes of organics': [WIKI_TITAN, NASA_TITAN],
   Tholins: [{ label: 'Wikipedia: Tholin', url: 'https://en.wikipedia.org/wiki/Tholin' }],
